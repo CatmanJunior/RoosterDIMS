@@ -1,0 +1,52 @@
+# Constraint 1: Niet plannen als iemand niet beschikbaar is
+def add_availability_constraints(model, assignment_vars, person_list, shift_list):
+    for t_idx, tester in enumerate(person_list):
+        for s_idx, shift in enumerate(shift_list):
+            # Als de tester niet beschikbaar is op deze datum, dan kan hij/zij niet worden ingepland,
+            # of als de datum niet in de beschikbaarheidslijst staat, dan wel.
+            if not tester["beschikbaar"].get(shift["date"], True):
+                model.Add(assignment_vars[(t_idx, s_idx)] == 0)
+                print(
+                    f"Adding constraint for {tester['naam']} on {shift['day']} (not available)"
+                )
+
+
+# Constraint 2: Maximaal 1 shift per dag per persoon
+def add_max_shifts_per_day_constraints(
+    model, assignment_vars, person_list, shift_list, max_shifts=1
+):
+    for t_idx, tester in enumerate(person_list):
+        for date in set(shift["date"] for shift in shift_list):
+            shifts_on_date = [
+                s_idx for s_idx, shift in enumerate(shift_list) if shift["date"] == date
+            ]
+            model.Add(
+                sum(assignment_vars[(t_idx, s_idx)] for s_idx in shifts_on_date)
+                <= max_shifts
+            )
+            print(
+                f"Adding constraint for {tester['naam']} on {date} (max 1 shift per day)"
+            )
+
+# Constraint 3: Precies 2 testers per shift
+def add_exactly_x_testers_per_shift_constraints(
+    model, assignment_vars, shift_list, person_list, x=2
+):
+    for s_idx, shift in enumerate(shift_list):
+        model.Add(
+            sum(assignment_vars[(t_idx, s_idx)] for t_idx in range(len(person_list)))
+            == x
+        )
+        print(f"Adding constraint for exactly {x} testers on shift {s_idx}")
+
+
+# Constraint 4: Minimaal 1 eerste tester per shift
+def add_minimum_first_tester_per_shift_constraints(
+    model, assignment_vars, person_list, shift_list
+):
+    for s_idx, shift in enumerate(shift_list):
+        eerste_testers = [
+            t_idx for t_idx, p in enumerate(person_list) if p["rol"] == "eerste"
+        ]
+        model.Add(sum(assignment_vars[(t_idx, s_idx)] for t_idx in eerste_testers) >= 1)
+        print(f"Adding constraint for at least 1 first tester on shift {s_idx}")
