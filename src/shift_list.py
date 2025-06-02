@@ -38,10 +38,12 @@ def get_dates_by_daynames(start, end, weekdagen):
 
 # Genereer shifts
 def create_shift_dict(location, day, date, team):
+    weeknummer = datetime.strptime(date, "%Y-%m-%d").isocalendar().week
     return {
         "location": location,
         "day": day,
         "date": date,
+        "weeknummer": weeknummer,
         "team": team
     }
 

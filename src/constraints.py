@@ -28,6 +28,7 @@ def add_max_shifts_per_day_constraints(
                 f"Adding constraint for {tester['naam']} on {date} (max 1 shift per day)"
             )
 
+
 # Constraint 3: Precies 2 testers per shift
 def add_exactly_x_testers_per_shift_constraints(
     model, assignment_vars, shift_list, person_list, x=2
@@ -50,3 +51,18 @@ def add_minimum_first_tester_per_shift_constraints(
         ]
         model.Add(sum(assignment_vars[(t_idx, s_idx)] for t_idx in eerste_testers) >= 1)
         print(f"Adding constraint for at least 1 first tester on shift {s_idx}")
+
+
+def add_max_x_shifts_per_week_constraints(
+    model, assignment_vars, person_list, shift_list, max_shifts_per_week=1
+):
+    weeknums = set(shift["weeknummer"] for shift in shift_list)
+    for num in weeknums:
+        for t_idx, tester in enumerate(person_list):
+            shifts_this_week = [
+                s_idx for s_idx, shift in enumerate(shift_list) if shift["weeknummer"] == num
+            ]
+            model.Add(
+                sum(assignment_vars[t_idx, s_idx] for s_idx in shifts_this_week)
+                <= max_shifts_per_week
+            )

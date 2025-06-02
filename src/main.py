@@ -6,10 +6,11 @@ from constraints import (
     add_max_shifts_per_day_constraints,
     add_exactly_x_testers_per_shift_constraints,
     add_minimum_first_tester_per_shift_constraints,
+    add_max_x_shifts_per_week_constraints,
 )
 from debug import print_available_people_for_shifts
 
-EVEN_SHIFTS_WEIGHT = 2
+EVEN_SHIFTS_WEIGHT = 5
 PREF_LOCATION_WEIGHT = 1
 
 model = cp_model.CpModel()
@@ -44,6 +45,10 @@ add_exactly_x_testers_per_shift_constraints(
 
 add_minimum_first_tester_per_shift_constraints(
     model, assignment_vars, person_list, shift_list
+)
+
+add_max_x_shifts_per_week_constraints(
+    model, assignment_vars, person_list, shift_list, max_shifts_per_week=1
 )
 
 # Constraint 5: Evenwichtige verdeling van shifts
@@ -99,6 +104,9 @@ if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
             locatie = shift["location"]
             namen = ", ".join(ingedeelden)
             print(f"  📍 {locatie} - {team}: {namen}")
+            
+    # Print het aantal shifts per persoon
+    print("\n👥 -Aantal shifts per persoon:")
     for tester in person_list:
         print(
             f"👤 {tester['naam']} ({tester['rol']}) - Voorkeur: {tester['voorkeur']} - Aantal shifts: "
