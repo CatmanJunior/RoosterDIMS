@@ -1,0 +1,16 @@
+naam,rol,voorkeur,10-03,10-05,10-10,10-12,10-17,10-19,10-24,10-26,10-31,11-02,11-07,11-09,11-14,11-16,11-21,11-23,11-28,11-30,12-05,12-07,12-12,12-14,12-19,12-21,12-26,12-28
+René,eerste,Utrecht,True,True,False,False,True,True,False,False,True,False,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+Sanne,peer,Utrecht,True,False,False,True,False,True,True,False,True,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+Ali,eerste,Amersfoort,True,True,True,True,True,True,False,True,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+Jeroen,peer,Amersfoort,False,True,True,True,True,True,False,True,False,True,False,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+Karin,eerste,Utrecht,True,True,False,True,True,True,True,False,False,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+Lotte,peer,Utrecht,True,True,False,True,True,True,False,False,True,True,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+Mark,eerste,Amersfoort,True,True,True,True,True,False,False,True,False,True,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+Eva,peer,Utrecht,True,False,True,True,True,True,True,False,True,False,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+Tom,peer,Amersfoort,True,True,True,True,True,True,False,True,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+Lisa,eerste,Utrecht,True,True,True,True,True,True,True,False,True,False,False,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+Pieter,peer,Amersfoort,True,True,True,True,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+Sophie,peer,Utrecht,True,True,True,True,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+Jasper,eerste,Amersfoort,True,True,True,True,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+Anouk,peer,Utrecht,True,True,True,True,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+Koen,eerste,Amersfoort,True,False,True,True,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False

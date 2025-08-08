@@ -1,5 +1,27 @@
 from datetime import datetime, timedelta
 
+class Filled_Shift():
+    def __init__(self, location, day, date, weeknummer, team, testers):
+        self.location = location
+        self.day = day
+        self.date = date
+        self.weeknummer = weeknummer
+        self.team = team
+        self.testers = testers
+    
+    def __repr__(self):
+        return f"Filled_Shift(location={self.location}, day={self.day}, date={self.date}, weeknummer={self.weeknummer}, team={self.team}, testers={self.testers})"
+
+    def to_dict(self):
+        return {
+            "location": self.location,
+            "day": self.day,
+            "date": self.date,
+            "weeknummer": self.weeknummer,
+            "team": self.team,
+            "testers": self.testers
+        }
+
 locations = ["Utrecht", "Amersfoort"]
 utrecht_days = ["di", "do"]
 utrecht_teams = [0, 1]
