@@ -1,3 +1,7 @@
+from datetime import datetime
+
+
+
 # Constraint 1: Niet plannen als iemand niet beschikbaar is
 def add_availability_constraints(model, assignment_vars, person_list, shift_list):
     for t_idx, tester in enumerate(person_list):
@@ -70,8 +74,35 @@ def add_max_x_shifts_per_week_constraints(
                 <= max_shifts_per_week
             )
 
+
+# constraint 8: Maximaal x shifts per maand per persoon gebasseerd op voorkeuren.#
+# Gebasseerd op de "Hoevaak PM Max" van de person_list
+def calculate_max_x_shifts_per_month_penalty(
+    assignment_vars, person_list, shift_list, max_shifts_per_month=1, penalty_weight=100
+):
+
+    monthnums = set(
+        datetime.strptime(shift["date"], "%Y-%m-%d").month for shift in shift_list
+    )
+    penalty = 0
+    for num in monthnums:
+        for t_idx, tester in enumerate(person_list):
+            shifts_this_month = [
+                s_idx
+                for s_idx, shift in enumerate(shift_list)
+                if datetime.strptime(shift["date"], "%Y-%m-%d").month == num
+            ]
+            max_shifts = tester.get("hoeveelheid_pm_max", max_shifts_per_month)
+            total_shifts = sum(assignment_vars[t_idx, s_idx] for s_idx in shifts_this_month)
+            excess = max(0, total_shifts - max_shifts)
+            penalty += excess * penalty_weight
+    return penalty
+
+
 # Constraint 7: Maximaal 1 eerste tester per shift, tenzij er geen peers beschikbaar zijn
-def add_single_first_tester_constraints(model, assignment_vars, shift_list, person_list):
+def add_single_first_tester_constraints(
+    model, assignment_vars, shift_list, person_list
+):
     """
     Dit zorgt ervoor dat er maximaal 1 eerste tester per shift is, tenzij er geen peers beschikbaar zijn.
     In dat geval is er geen beperking op het aantal eerste testers.
@@ -81,11 +112,11 @@ def add_single_first_tester_constraints(model, assignment_vars, shift_list, pers
     peer_idx = [i for i, p in enumerate(person_list) if p["rol"] == "peer"]
 
     for s_idx, shift in enumerate(shift_list):
-        
-
         # Peers die beschikbaar zijn op deze dag
         beschikbare_peers = [
-            t_idx for t_idx in peer_idx if person_list[t_idx]["beschikbaar"].get(shift["date"], True)
+            t_idx
+            for t_idx in peer_idx
+            if person_list[t_idx]["beschikbaar"].get(shift["date"], True)
         ]
 
         if not beschikbare_peers:

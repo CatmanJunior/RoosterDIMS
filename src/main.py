@@ -1,6 +1,6 @@
 from ortools.sat.python import cp_model
 from export import export_to_csv
-from persons import person_list
+from persons import csv_to_person_list
 from shift_list import shift_list, Filled_Shift
 from constraints import (
     add_availability_constraints,
@@ -9,6 +9,7 @@ from constraints import (
     add_exactly_x_testers_per_shift_constraints,
     add_minimum_first_tester_per_shift_constraints,
     add_max_x_shifts_per_week_constraints,
+    calculate_max_x_shifts_per_month_penalty,
 )
 from debug import (
     print_available_people_for_shifts,
@@ -21,6 +22,8 @@ EVEN_SHIFTS_WEIGHT = 5
 PREF_LOCATION_WEIGHT = 1
 
 model = cp_model.CpModel()
+
+person_list = csv_to_person_list("Test_Data_sanitized_oktober.csv")
 
 
 def create_assignment_vars():
@@ -54,12 +57,16 @@ def add_constraints(model, assignment_vars):
     )
 
     add_max_x_shifts_per_week_constraints(
-        model, assignment_vars, person_list, shift_list, max_shifts_per_week=1
+        model, assignment_vars, person_list, shift_list, max_shifts_per_week=2
     )
 
-    add_single_first_tester_constraints(
-        model, assignment_vars, shift_list, person_list
-    )
+    add_single_first_tester_constraints(model, assignment_vars, shift_list, person_list)
+
+
+    #deze is nog erg buggy
+    # max_shift_penalty = calculate_max_x_shifts_per_month_penalty(
+    #    assignment_vars, person_list, shift_list, max_shifts_per_month=3, penalty_weight=4
+    # )
 
     # Constraint 5: Evenwichtige verdeling van shifts
     shifts_per_tester = [
@@ -88,10 +95,8 @@ def add_constraints(model, assignment_vars):
         +
         # Gelijke shifts:
         (max_shifts - min_shifts) * EVEN_SHIFTS_WEIGHT
+        # + max_shift_penalty
     )
-
-
-
 
 
 def run_model():
