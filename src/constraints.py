@@ -1,4 +1,10 @@
 from datetime import datetime
+import os
+
+def _log(msg: str) -> None:
+    """Print only when ROOSTER_VERBOSE env var is truthy."""
+    if os.environ.get("ROOSTER_VERBOSE") not in (None, "", "0", "false", "False"):
+        print(msg)
 
 
 
@@ -8,10 +14,10 @@ def add_availability_constraints(model, assignment_vars, person_list, shift_list
         for s_idx, shift in enumerate(shift_list):
             # Als de tester niet beschikbaar is op deze datum, dan kan hij/zij niet worden ingepland,
             # of als de datum niet in de beschikbaarheidslijst staat, dan wel.
-            if not tester["beschikbaar"].get(shift["date"], True):
+            if not tester["availability"].get(shift["date"], True):
                 model.Add(assignment_vars[(t_idx, s_idx)] == 0)
-                print(
-                    f"Adding constraint for {tester['naam']} on {shift['day']} (not available)"
+                _log(
+                    f"Adding constraint for {tester['name']} on {shift['day']} (not available)"
                 )
 
 
@@ -28,8 +34,8 @@ def add_max_shifts_per_day_constraints(
                 sum(assignment_vars[(t_idx, s_idx)] for s_idx in shifts_on_date)
                 <= max_shifts
             )
-            print(
-                f"Adding constraint for {tester['naam']} on {date} (max 1 shift per day)"
+            _log(
+                f"Adding constraint for {tester['name']} on {date} (max 1 shift per day)"
             )
 
 
@@ -42,7 +48,7 @@ def add_exactly_x_testers_per_shift_constraints(
             sum(assignment_vars[(t_idx, s_idx)] for t_idx in range(len(person_list)))
             == x
         )
-        print(f"Adding constraint for exactly {x} testers on shift {s_idx}")
+        _log(f"Adding constraint for exactly {x} testers on shift {s_idx}")
 
 
 # Constraint 4: Minimaal 1 eerste tester per shift
@@ -51,10 +57,10 @@ def add_minimum_first_tester_per_shift_constraints(
 ):
     for s_idx, shift in enumerate(shift_list):
         eerste_testers = [
-            t_idx for t_idx, p in enumerate(person_list) if p["rol"] == "eerste"
+            t_idx for t_idx, p in enumerate(person_list) if p["role"] == "T"
         ]
         model.Add(sum(assignment_vars[(t_idx, s_idx)] for t_idx in eerste_testers) >= 1)
-        print(f"Adding constraint for at least 1 first tester on shift {s_idx}")
+        _log(f"Adding constraint for at least 1 first tester on shift {s_idx}")
 
 
 # Constraint 6: Maximaal x shifts per week per persoon
@@ -92,7 +98,7 @@ def calculate_max_x_shifts_per_month_penalty(
                 for s_idx, shift in enumerate(shift_list)
                 if datetime.strptime(shift["date"], "%Y-%m-%d").month == num
             ]
-            max_shifts = tester.get("hoeveelheid_pm_max", max_shifts_per_month)
+            max_shifts = tester.get("month_max", max_shifts_per_month)
             total_shifts = sum(assignment_vars[t_idx, s_idx] for s_idx in shifts_this_month)
             excess = max(0, total_shifts - max_shifts)
             penalty += excess * penalty_weight
@@ -106,17 +112,18 @@ def add_single_first_tester_constraints(
     """
     Dit zorgt ervoor dat er maximaal 1 eerste tester per shift is, tenzij er geen peers beschikbaar zijn.
     In dat geval is er geen beperking op het aantal eerste testers.
+    TODO: Check of dit niet tot conflicten leidt door de max per maand regel
     """
-
-    eerste_idx = [i for i, p in enumerate(person_list) if p["rol"] == "eerste"]
-    peer_idx = [i for i, p in enumerate(person_list) if p["rol"] == "peer"]
+    # Roles in person_list use 'T' (tester/eerste) and 'P' (peer)
+    eerste_idx = [i for i, p in enumerate(person_list) if p["role"] == "T"]
+    peer_idx = [i for i, p in enumerate(person_list) if p["role"] == "P"]
 
     for s_idx, shift in enumerate(shift_list):
         # Peers die beschikbaar zijn op deze dag
         beschikbare_peers = [
             t_idx
             for t_idx in peer_idx
-            if person_list[t_idx]["beschikbaar"].get(shift["date"], True)
+            if person_list[t_idx]["availability"].get(shift["date"], True)
         ]
 
         if not beschikbare_peers:

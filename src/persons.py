@@ -1,236 +1,41 @@
 import csv
 from datetime import datetime
+import re
 
 
-def csv_to_person_list(csv_path):
+def is_date_field(keyname):
+    # Matches day-month like "1-11" or "12-1" (supports 1..31 for day, 1..12 for month, with optional leading 0)
+    return bool(re.match(r"^(?:0?[1-9]|[12][0-9]|3[01])-(?:0?[1-9]|1[0-2])$", keyname))
+
+
+def csv_to_personlist(csv_path):
     person_list = []
     with open(csv_path, newline="", encoding="utf-8") as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
-            if row["Ingevuld"].strip().upper() != "TRUE":
-                continue
-            naam = row["Naam"].strip()
-            rol = "eerste" if row["Eerste"].strip().upper() == "TRUE" else "peer"
-            voorkeur = (
-                row["Voorkeurslocatie"].strip()
-                if row["Voorkeurslocatie"].strip()
-                else None
-            )
+            naam = row["Name"].strip()
+            rol = "T" if row["Tester"].strip().upper() == "TRUE" else "P"
+            pref_loc = row["Pref_Loc"].strip()
             beschikbaar = {}
+            month_max = int(row["Month_max"].strip())
+            month_avg = int(row["Month_avg"].strip())
+
             for key in row:
-                if key not in ["Naam", "Ingevuld", "Eerste", "Voorkeurslocatie","Hoevaak PM Max"]:
-                    # Convert date from d-m to yyyy-mm-dd (assume 2023)
+                if is_date_field(key):
                     try:
                         date_obj = datetime.strptime(key.strip(), "%d-%m")
-                        date_str = f"2023-{date_obj.month:02d}-{date_obj.day:02d}"
+                        date_str = f"2025-{date_obj.month:02d}-{date_obj.day:02d}"
                     except ValueError:
                         date_str = key.strip()
                     beschikbaar[date_str] = row[key].strip().upper() == "TRUE"
+
             person = {
-                "naam": naam,
-                "rol": rol,
-                "beschikbaar": beschikbaar,
-                "voorkeur": voorkeur,
-                "hoeveelheid_pm_max": int(row["Hoevaak PM Max"].strip()) if row["Hoevaak PM Max"].strip().isdigit() else None
+                "name": naam,
+                "role": rol,
+                "availability": beschikbaar,
+                "pref_location": pref_loc,
+                "month_max": int(month_max),
+                "month_avg": int(month_avg),
             }
             person_list.append(person)
     return person_list
-
-
-person_list = [
-    {
-        "naam": "René",
-        "rol": "eerste",
-        "beschikbaar": {
-            "2023-10-03": True,
-            "2023-10-10": False,
-            "2023-10-17": True,
-            "2023-10-05": True,
-            "2023-10-12": False,
-            "2023-10-19": True,
-        },
-        "voorkeur": "Utrecht",
-    },
-    {
-        "naam": "Sanne",
-        "rol": "peer",
-        "beschikbaar": {
-            "2023-10-03": True,
-            "2023-10-10": False,
-            "2023-10-17": False,
-            "2023-10-05": False,
-            "2023-10-12": True,
-            "2023-10-19": True,
-        },
-        "voorkeur": "Utrecht",
-    },
-    {
-        "naam": "Ali",
-        "rol": "eerste",
-        "beschikbaar": {
-            "2023-10-03": True,
-            "2023-10-10": True,
-            "2023-10-17": True,
-            "2023-10-05": True,
-            "2023-10-12": True,
-            "2023-10-19": True,
-        },
-        "voorkeur": "Amersfoort",
-    },
-    {
-        "naam": "Jeroen",
-        "rol": "peer",
-        "beschikbaar": {
-            "2023-10-03": False,
-            "2023-10-10": True,
-            "2023-10-17": True,
-            "2023-10-05": True,
-            "2023-10-12": True,
-            "2023-10-19": True,
-        },
-        "voorkeur": "Amersfoort",
-    },
-    {
-        "naam": "Karin",
-        "rol": "eerste",
-        "beschikbaar": {
-            "2023-10-03": True,
-            "2023-10-10": False,
-            "2023-10-17": True,
-            "2023-10-05": True,
-            "2023-10-12": True,
-            "2023-10-19": True,
-        },
-        "voorkeur": "Utrecht",
-    },
-    {
-        "naam": "Lotte",
-        "rol": "peer",
-        "beschikbaar": {
-            "2023-10-03": True,
-            "2023-10-10": False,
-            "2023-10-17": True,
-            "2023-10-05": True,
-            "2023-10-12": True,
-            "2023-10-19": True,
-        },
-        "voorkeur": "Utrecht",
-    },
-    {
-        "naam": "Mark",
-        "rol": "eerste",
-        "beschikbaar": {
-            "2023-10-03": True,
-            "2023-10-10": True,
-            "2023-10-17": True,
-            "2023-10-05": True,
-            "2023-10-12": True,
-            "2023-10-19": False,
-        },
-        "voorkeur": "Amersfoort",
-    },
-    {
-        "naam": "Eva",
-        "rol": "peer",
-        "beschikbaar": {
-            "2023-10-03": True,
-            "2023-10-10": True,
-            "2023-10-17": True,
-            "2023-10-05": False,
-            "2023-10-12": True,
-            "2023-10-19": True,
-        },
-        "voorkeur": "Utrecht",
-    },
-    {
-        "naam": "Tom",
-        "rol": "peer",
-        "beschikbaar": {
-            "2023-10-03": True,
-            "2023-10-10": True,
-            "2023-10-17": True,
-            "2023-10-05": True,
-            "2023-10-12": True,
-            "2023-10-19": True,
-        },
-        "voorkeur": "Amersfoort",
-    },
-    {
-        "naam": "Lisa",
-        "rol": "eerste",
-        "beschikbaar": {
-            "2023-10-03": True,
-            "2023-10-10": True,
-            "2023-10-17": True,
-            "2023-10-05": True,
-            "2023-10-12": True,
-            "2023-10-19": True,
-        },
-        "voorkeur": "Utrecht",
-    },
-    {
-        "naam": "Pieter",
-        "rol": "peer",
-        "beschikbaar": {
-            "2023-10-03": True,
-            "2023-10-10": True,
-            "2023-10-17": True,
-            "2023-10-05": True,
-            "2023-10-12": True,
-            "2023-10-19": True,
-        },
-        "voorkeur": "Amersfoort",
-    },
-    {
-        "naam": "Sophie",
-        "rol": "peer",
-        "beschikbaar": {
-            "2023-10-03": True,
-            "2023-10-10": True,
-            "2023-10-17": True,
-            "2023-10-05": True,
-            "2023-10-12": True,
-            "2023-10-19": True,
-        },
-        "voorkeur": "Utrecht",
-    },
-    {
-        "naam": "Jasper",
-        "rol": "eerste",
-        "beschikbaar": {
-            "2023-10-03": True,
-            "2023-10-10": True,
-            "2023-10-17": True,
-            "2023-10-05": True,
-            "2023-10-12": True,
-            "2023-10-19": True,
-        },
-        "voorkeur": "Amersfoort",
-    },
-    {
-        "naam": "Anouk",
-        "rol": "peer",
-        "beschikbaar": {
-            "2023-10-03": True,
-            "2023-10-10": True,
-            "2023-10-17": True,
-            "2023-10-05": True,
-            "2023-10-12": True,
-            "2023-10-19": True,
-        },
-        "voorkeur": "Utrecht",
-    },
-    {
-        "naam": "Koen",
-        "rol": "eerste",
-        "beschikbaar": {
-            "2023-10-03": True,
-            "2023-10-10": True,
-            "2023-10-17": True,
-            "2023-11-05": False,
-            "2023-10-12": True,
-            "2023-10-19": True,
-        },
-        "voorkeur": "Amersfoort",
-    },
-]

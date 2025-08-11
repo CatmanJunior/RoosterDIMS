@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 import csv
-
+from typing import List, Dict, Optional
 class Filled_Shift:
     def __init__(self, location, day, date, weeknummer, team, testers):
         self.location = location
@@ -22,6 +22,8 @@ class Filled_Shift:
             "team": self.team,
             "testers": self.testers,
         }
+    
+
     
 shift_list = []
 
@@ -73,37 +75,65 @@ def create_shift_dict(location, day, date, team):
 
 
 
-def import_shifts_from_preferences(csv_path):
+def csv_to_shiftlist(csv_path: str, plan: Optional[Dict[str, Dict[str, int]]] = None) -> list[dict[str, int | str]]:
+    """
+    Build a list of shifts from either:
+    - a provided plan: { 'YYYY-MM-DD': {'Utrecht': int, 'Amersfoort': int}, ... }
+    - or by inferring dates from the uploaded CSV headers and using dag_teams defaults.
+    """
+    shift_list: list[dict[str, int | str]] = []
+
+    if plan:
+        # Use explicit plan; date keys drive the generation
+        for date in sorted(plan.keys()):
+            # Validate/normalize date
+            try:
+                dt = datetime.strptime(date, "%Y-%m-%d")
+            except ValueError:
+                # Ignore invalid dates
+                continue
+            weekday = get_weekday_from_date(dt)
+            counts = plan.get(date, {})
+            for loc in ("Utrecht", "Amersfoort"):
+                n = int(counts.get(loc, 0) or 0)
+                for i in range(max(0, n)):
+                    shift_list.append(create_shift_dict(loc, weekday, date, i))
+        return shift_list
+
+    # Legacy inference path
     with open(csv_path, newline="", encoding="utf-8") as csvfile:
-        reader = csv.DictReader(csvfile, delimiter="\t")
+        reader: csv.DictReader = csv.DictReader(csvfile, delimiter="\t")
         if not reader.fieldnames:
             raise ValueError("CSV file must have headers")
 
-        date_columns = reader.fieldnames
-        # turn the sequence to a list
-        date_columns = list(date_columns)[0].split(",")[5:]
-        # format all date strings to datetime objects, the current format is 1-10, set year to 2025
-        date_columns = [
-            datetime.strptime(date, "%d-%m").replace(year=2025).strftime("%Y-%m-%d")
-            for date in date_columns
-        ]
+        # Heuristic: some files may have a single combined header string; keep old behavior
+        raw_header = list(reader.fieldnames)[0]
+        date_cells = raw_header.split(",")[5:]
+        date_columns: list[str] = []
+        for date in date_cells:
+            try:
+                date_columns.append(
+                    datetime.strptime(date.strip(), "%d-%m").replace(year=2025).strftime("%Y-%m-%d")
+                )
+            except Exception:
+                # Skip non-date tokens
+                continue
 
         print(f"Date columns found: {date_columns} ")
         for date in date_columns:
-            weekday = get_weekday_from_date(datetime.strptime(date, "%Y-%m-%d"))
-            
-            for i in range(dag_teams[weekday][0]):
-                new_shift = create_shift_dict(
+            weekday: str = get_weekday_from_date(datetime.strptime(date, "%Y-%m-%d"))
+            for i in range(dag_teams.get(weekday, [0, 0])[0]):
+                new_shift: dict[str, int | str] = create_shift_dict(
                     "Utrecht", weekday, date, i
                 )
                 shift_list.append(new_shift)
-            for i in range(dag_teams[weekday][1]):
+            for i in range(dag_teams.get(weekday, [0, 0])[1]):
                 new_shift = create_shift_dict(
                     "Amersfoort", weekday, date, i
                 )
                 shift_list.append(new_shift)
 
-            
+    return shift_list
 
 def get_weekday_from_date(date_obj):
     return dag_namen[date_obj.weekday()]
@@ -124,7 +154,7 @@ def create_shift_list_from_daterange():
                         shift_list.append(create_shift_dict(location, day, date, team))
 
 
-import_shifts_from_preferences("Test_Data_sanitized_oktober.csv")
+# import_shifts_from_preferences("Test_Data_sanitized_oktober.csv")
 # create_shift_list_from_daterange()
 
 if __name__ == "__main__":

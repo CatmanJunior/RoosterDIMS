@@ -1,17 +1,17 @@
 def print_available_people_for_shifts(shift_list, person_list):
     for s_idx, shift in enumerate(shift_list):
         beschikbaar = [
-            tester["naam"]
+            tester["name"]
             for tester in person_list
-            if tester["beschikbaar"].get(shift["date"], False)
+            if tester["availability"].get(shift["date"], False)
         ]
         print(f"Shift {shift} → Beschikbare mensen: {beschikbaar}")
 
     for s_idx, shift in enumerate(shift_list):
         beschikbare_eerste = [
-            t["naam"]
+            t["name"]
             for t in person_list
-            if t["rol"] == "eerste" and t["beschikbaar"].get(shift["date"], False)
+            if t["role"] == "T" and t["availability"].get(shift["date"], False)
         ]
         if len(beschikbare_eerste) < 1:
             print(f" Geen eerste tester beschikbaar op shift {shift}")
@@ -31,7 +31,7 @@ def print_shift_schedule(assignment_vars, solver, shift_list, person_list):
 
             s_idx = shift_list.index(shift)
             ingedeelden = [
-                person_list[t_idx]["naam"]
+                person_list[t_idx]["name"]
                 for t_idx in range(len(person_list))
                 if solver.Value(assignment_vars[(t_idx, s_idx)]) == 1
             ]
@@ -46,13 +46,13 @@ def print_shift_count_per_person(assignment_vars, solver, shift_list, person_lis
     print("\n👥 -Aantal shifts per persoon:")
     for tester in person_list:
         print(
-            f"👤 {tester['naam']} ({tester['rol']}) - Voorkeur: {tester['voorkeur']} - Aantal shifts: "
+            f"👤 {tester['name']} ({tester['role']}) - Voorkeur: {tester['pref_location']} - Aantal shifts: "
         )
         aantal_shifts = sum(
             solver.Value(assignment_vars[(t_idx, s_idx)]) == 1
             for s_idx in range(len(shift_list))
             for t_idx in range(len(person_list))
-            if person_list[t_idx]["naam"] == tester["naam"]
+            if person_list[t_idx]["name"] == tester["name"]
         )
         print(f"    {aantal_shifts} shifts")
 
