@@ -1,0 +1,12 @@
+{
+  "locations": [
+    {
+      "name": "Utrecht",
+      "teams_per_day": { "di": 2, "do": 2, "wo": 1 }
+    },
+    {
+      "name": "Amersfoort",
+      "teams_per_day": { "do": 1 }
+    }
+  ]
+}

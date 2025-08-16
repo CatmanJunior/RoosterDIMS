@@ -3,6 +3,7 @@ from datetime import datetime
 import argparse
 import sys
 from export import export_to_csv
+from config import get_data_sources_config
 from persons import csv_to_personlist
 from shift_list import Filled_Shift, csv_to_shiftlist
 from constraints import (
@@ -20,13 +21,15 @@ from debug import (
 )
 from penalties import export_penalties
 
+default_csv = get_data_sources_config().get("default_persons_csv", "data/Data_sanitized_OKT-DEC2025.csv")
+
 # Parse CLI arguments early so globals below use the chosen CSV
 parser = argparse.ArgumentParser(description="Run roster optimization")
 parser.add_argument(
     "--csv",
     dest="csv_file",
     help="Path to the input CSV with persons and dates",
-    default="data/Dummy_Test_Data_sanitized_november.csv",
+    default=default_csv,
 )
 parser.add_argument(
     "--shift-plan",
@@ -43,7 +46,7 @@ args, _ = parser.parse_known_args(sys.argv[1:])
 EVEN_SHIFTS_WEIGHT = 5
 PREF_LOCATION_WEIGHT = 1
 MONTHLY_MAX_WEIGHT = 100  # penalty weight for exceeding personal monthly caps
-MONTHLY_AVG_WEIGHT = 10  # penalty weight for not reaching personal monthly average
+MONTHLY_AVG_WEIGHT = 20  # penalty weight for not reaching personal monthly average
 
 model = cp_model.CpModel()
 csv_file = args.csv_file
@@ -103,9 +106,11 @@ def add_constraints(model, assignment_vars):
         model, assignment_vars, person_list, shift_list
     )
 
-    # Build monthly average shortfall variables (aux vars) for penalty
-    monthly_avg_deficit_vars = build_monthly_avg_deficit_vars(
-        model, assignment_vars, person_list, shift_list
+    # Build monthly average shortfall cost variables (aux vars) for penalty
+    # Computed once over the full roster period per person and using a
+    # non-linear (quadratic) cost curve: cost = weight * deficit^2
+    monthly_avg_cost_vars = build_monthly_avg_cost_vars(
+        model, assignment_vars, person_list, shift_list, MONTHLY_AVG_WEIGHT
     )
 
     # Constraint 5: Evenwichtige verdeling van shifts
@@ -121,12 +126,21 @@ def add_constraints(model, assignment_vars):
 
     penalties = []
 
-    # Constraint 6: Voorkeurslocaties
+    # Constraint 6: Voorkeurslocaties met nieuwe flags
     for t_idx, tester in enumerate(person_list):
         for s_idx, shift in enumerate(shift_list):
-            if shift["location"] != tester["pref_location"]:
-                # Boete als iemand niet op z'n voorkeurslocatie werkt
-                penalties.append(assignment_vars[(t_idx, s_idx)])
+            flags = tester.get("pref_loc_flags", {})
+            flag = flags.get(shift["location"], None)
+            if flag is None:
+                # Fallback to legacy single preferred location string
+                if tester.get("pref_location") and shift["location"] != tester["pref_location"]:
+                    penalties.append(assignment_vars[(t_idx, s_idx)])
+            else:
+                # 0 is handled as hard ban in constraints
+                # 1 = penalize assignments on this location
+                # 2 = no penalty for this location
+                if flag == 1:
+                    penalties.append(assignment_vars[(t_idx, s_idx)])
 
     # Minimaliseer het totaal aantal keren dat mensen niet op hun voorkeurslocatie werken
     model.Minimize(
@@ -137,10 +151,11 @@ def add_constraints(model, assignment_vars):
         (max_shifts - min_shifts) * EVEN_SHIFTS_WEIGHT
         +
         # Overschrijding persoonlijke maandlimieten:
-    sum(monthly_excess_vars) * MONTHLY_MAX_WEIGHT
-    +
-    # Niet halen van persoonlijke maandgemiddelde (shortfall):
-    sum(monthly_avg_deficit_vars) * MONTHLY_AVG_WEIGHT
+        sum(monthly_excess_vars) * MONTHLY_MAX_WEIGHT
+        +
+        # Niet halen van persoonlijke maandgemiddelde (shortfall):
+        # non-linear quadratic cost already scaled by MONTHLY_AVG_WEIGHT
+        sum(monthly_avg_cost_vars)
     )
 
 
@@ -182,38 +197,55 @@ def build_monthly_max_excess_vars(model, assignment_vars, person_list, shift_lis
     return excess_vars
 
 
-def build_monthly_avg_deficit_vars(model, assignment_vars, person_list, shift_list):
-    """Create auxiliary variables representing max(0, month_avg - assigned_in_month)
-    for each person and month. Returns a list of IntVars to be summed in the objective.
-    This penalizes shortfalls below the person's monthly average.
-    """
-    # Map: month (1..12) -> list of shift indices in that month
-    month_to_shifts = {}
-    for s_idx, shift in enumerate(shift_list):
-        m = datetime.strptime(shift["date"], "%Y-%m-%d").month
-        month_to_shifts.setdefault(m, []).append(s_idx)
+def build_monthly_avg_cost_vars(model, assignment_vars, person_list, shift_list, weight: int):
+    """Create cost variables for monthly average shortfall per person over the entire roster.
 
-    zero = model.NewIntVar(0, 0, "zero_const_avg")
-    deficit_vars = []
+    Steps per person:
+    1) deficit = max(0, month_avg * N_months - assigned_total)
+    2) cost = weight * deficit^2 (modeled via an Element constraint over a precomputed table)
+    Returns a list of cost IntVars to be summed in the objective.
+    """
+    # Determine distinct year-months present in the roster
+    ym_keys = set()
+    for shift in shift_list:
+        d = datetime.strptime(shift["date"], "%Y-%m-%d")
+        ym_keys.add((d.year, d.month))
+    n_months = len(ym_keys) if ym_keys else 0
+
+    zero = model.NewIntVar(0, 0, "zero_const_avg_total")
+    cost_vars = []
+
+    total_shifts = len(shift_list)
 
     for t_idx, tester in enumerate(person_list):
-        target = int(tester.get("month_avg", 0))
-        for m, month_shifts in month_to_shifts.items():
-            m_count = len(month_shifts)
-            # diff = target - (sum assigned in month); can be negative if target reached
-            diff_lb = target - m_count
-            diff_ub = target
-            diff = model.NewIntVar(diff_lb, diff_ub, f"avg_diff_p{t_idx}_m{m}")
-            model.Add(
-                diff
-                == target - sum(assignment_vars[(t_idx, s_idx)] for s_idx in month_shifts)
-            )
-            # deficit = max(diff, 0)
-            deficit = model.NewIntVar(0, max(0, diff_ub), f"avg_deficit_p{t_idx}_m{m}")
-            model.AddMaxEquality(deficit, [diff, zero])
-            deficit_vars.append(deficit)
+        per_month = int(tester.get("month_avg", 0))
+        target_total = per_month * n_months
 
-    return deficit_vars
+        # diff = target_total - assigned_total
+        # assigned_total ranges in [0, total_shifts]
+        diff_lb = target_total - total_shifts
+        diff_ub = target_total
+        diff = model.NewIntVar(diff_lb, diff_ub, f"avg_total_diff_p{t_idx}")
+        model.Add(
+            diff
+            == target_total - sum(assignment_vars[(t_idx, s_idx)] for s_idx in range(total_shifts))
+        )
+
+        # deficit = max(diff, 0)
+        deficit_ub = max(0, diff_ub)
+        deficit = model.NewIntVar(0, deficit_ub, f"avg_total_deficit_p{t_idx}")
+        model.AddMaxEquality(deficit, [diff, zero])
+
+        # Non-linear cost via element: cost = weight * deficit^2
+        # Build cost table for indices 0..deficit_ub
+        costs = [weight * (i * i) for i in range(deficit_ub + 1)]
+        # Upper bound for cost var
+        cost_ub = costs[-1] if costs else 0
+        cost_var = model.NewIntVar(0, cost_ub, f"avg_total_cost_p{t_idx}")
+        model.AddElement(deficit, costs, cost_var)
+        cost_vars.append(cost_var)
+
+    return cost_vars
 
 
 def run_model():
@@ -231,7 +263,7 @@ if __name__ == "__main__":
         _os.environ["ROOSTER_VERBOSE"] = "1"
 
     if args.verbose:
-        print_available_people_for_shifts(shift_list, person_list)
+        print_available_people_for_shifts(shift_list, person_list) 
 
     assignment_vars = create_assignment_vars()
     add_constraints(model, assignment_vars)

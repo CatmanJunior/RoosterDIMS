@@ -1,6 +1,7 @@
 import ast
 import pandas as pd
 import streamlit as st
+from config import get_data_sources_config
 
 
 def render_rooster_page() -> None:
@@ -8,9 +9,10 @@ def render_rooster_page() -> None:
 
     # CSV inladen
     try:
-        df = pd.read_csv("rooster.csv")
+        roster_path = get_data_sources_config().get("roster_csv", "rooster.csv")
+        df = pd.read_csv(roster_path)
     except FileNotFoundError:
-        st.info("Geen rooster.csv gevonden. Genereer eerst een rooster via de Generator.")
+        st.info("Geen rooster gevonden. Genereer eerst een rooster via de Generator.")
         return
 
     # Parse 'testers' kolom naar een lijst voor aggregaties/overzichten
@@ -66,8 +68,7 @@ def render_rooster_page() -> None:
                 pass
         if not csv_path:
             for candidate in (
-                "data/Dummy_Test_Data_sanitized_oktober.csv",
-                "data/Dummy_Test_Data_sanitized_november.csv",
+                get_data_sources_config().get("default_persons_csv", "data/Data_sanitized_OKT-DEC2025.csv"),
             ):
                 if os.path.exists(candidate):
                     csv_path = candidate
@@ -108,7 +109,7 @@ def render_rooster_page() -> None:
     # 2) Overzicht: penalties per persoon (gewogen som indien beschikbaar)
     penalties_per_person = pd.DataFrame()
     try:
-        p = pd.read_csv("penalties.csv")
+        p = pd.read_csv(get_data_sources_config().get("penalties_csv", "penalties.csv"))
         if not p.empty:
             if "component" in p.columns:
                 if "weighted" in p.columns:

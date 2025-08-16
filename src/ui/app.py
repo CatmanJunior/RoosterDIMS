@@ -22,6 +22,17 @@ def main() -> None:
     from persons import csv_to_personlist  # type: ignore
     from ui.rooster_page import render_rooster_page  # type: ignore
     from ui.generator_page import render_generator_page  # type: ignore
+    from config import get_data_sources_config, get_locations_config  # type: ignore
+
+    # Load configs for visibility
+    ds_conf = get_data_sources_config()
+    loc_conf = get_locations_config()
+
+    with st.sidebar.expander("Config", expanded=False):
+        st.caption("Data sources")
+        st.json(ds_conf)
+        st.caption("Locations")
+        st.json(loc_conf)
 
     page = st.sidebar.radio(
         "📚 Kies weergave",
@@ -33,8 +44,8 @@ def main() -> None:
 
     elif page == "Statistieken":
         st.title("📊 Shiftoverzicht per tester")
-
-        df = pd.read_csv("rooster.csv")
+        roster_path = ds_conf.get("roster_csv", "rooster.csv")
+        df = pd.read_csv(roster_path)
         df["testers"] = df["testers"].apply(
             lambda x: ast.literal_eval(x) if isinstance(x, str) else x
         )
@@ -57,7 +68,7 @@ def main() -> None:
 
         # Laad brondata (altijd) om echte beschikbaarheid te tonen
         try:
-            people = csv_to_personlist("data/Dummy_Test_Data_sanitized_oktober.csv")
+            people = csv_to_personlist(ds_conf.get("default_persons_csv", "data/Data_sanitized_OKT-DEC2025.csv"))
         except Exception as e:
             st.error(f"Kon testers niet laden: {e}")
             people = []
@@ -86,7 +97,7 @@ def main() -> None:
         selected_dates = list(full_range_str)
         if use_rooster_dates:
             try:
-                rooster = pd.read_csv("rooster.csv")
+                rooster = pd.read_csv(ds_conf.get("roster_csv", "rooster.csv"))
                 rooster_dates = sorted(pd.to_datetime(rooster["date"]).dt.strftime("%Y-%m-%d").unique())
                 selected_dates = [d for d in full_range_str if d in set(rooster_dates)]
             except Exception:
@@ -129,7 +140,7 @@ def main() -> None:
 
         # Summary
         try:
-            summary = pd.read_csv("penalties_summary.csv")
+            summary = pd.read_csv(ds_conf.get("penalties_summary_csv", "penalties_summary.csv"))
             st.subheader("Samenvatting per component (gewogen)")
             st.dataframe(summary)
             # Exclude total row for charting
@@ -141,7 +152,7 @@ def main() -> None:
         # Details
         st.subheader("Details")
         try:
-            df = pd.read_csv("penalties.csv")
+            df = pd.read_csv(ds_conf.get("penalties_csv", "penalties.csv"))
 
             # Filters
             people = ["(alle)"] + sorted([p for p in df["person"].dropna().unique() if p != ""])

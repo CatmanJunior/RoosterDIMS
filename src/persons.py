@@ -15,7 +15,20 @@ def csv_to_personlist(csv_path):
         for row in reader:
             naam = row["Name"].strip()
             rol = "T" if row["Tester"].strip().upper() == "TRUE" else "P"
-            pref_loc = row["Pref_Loc"].strip()
+            # Backward compatibility: optional single preferred location string
+            pref_loc = row.get("Pref_Loc", "").strip()
+            # New flags: Pref_Loc_0 (Utrecht), Pref_Loc_1 (Amersfoort)
+            def _parse_flag(val, default=2):
+                try:
+                    return int(str(val).strip())
+                except Exception:
+                    return default
+            pref_loc_0 = _parse_flag(row.get("Pref_Loc_0", 2))  # 0=forbidden, 1=penalize, 2=no penalty
+            pref_loc_1 = _parse_flag(row.get("Pref_Loc_1", 2))
+            pref_loc_flags = {
+                "Utrecht": pref_loc_0,
+                "Amersfoort": pref_loc_1,
+            }
             beschikbaar = {}
             month_max = int(row["Month_max"].strip())
             month_avg = int(row["Month_avg"].strip())
@@ -34,6 +47,7 @@ def csv_to_personlist(csv_path):
                 "role": rol,
                 "availability": beschikbaar,
                 "pref_location": pref_loc,
+                "pref_loc_flags": pref_loc_flags,
                 "month_max": int(month_max),
                 "month_avg": int(month_avg),
             }

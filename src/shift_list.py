@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 import csv
-from typing import List, Dict, Optional
+from typing import Dict, Optional
+from config import get_locations_config
 class Filled_Shift:
     def __init__(self, location, day, date, weeknummer, team, testers):
         self.location = location
@@ -27,11 +28,10 @@ class Filled_Shift:
     
 shift_list = []
 
-locations = ["Utrecht", "Amersfoort"]
-utrecht_days = ["di", "do"]
-utrecht_teams = [0, 1]
-amersfoort_days = ["do"]
-amersfoort_teams = [0]
+# Load dynamic locations config
+_LOC_CONF = get_locations_config()
+_LOCATIONS = [loc["name"] for loc in _LOC_CONF.get("locations", [])]
+_LOC_TEAMS_PER_DAY = {loc["name"]: loc.get("teams_per_day", {}) for loc in _LOC_CONF.get("locations", [])}
 
 # Geef hier de gewenste weekdagen op en de start/einddatum
 weekdagen = ["di", "do"]
@@ -41,8 +41,13 @@ einddatum = "2023-12-31"
 # Map weekday numbers naar Nederlandse dagen
 dag_namen = {0: "ma", 1: "di", 2: "wo", 3: "do", 4: "vr", 5: "za", 6: "zo"}
 
-#formatted as "day": [Utrecht_team_count, Amersfoort_team_count]
-dag_teams = {"di": [2, 0], "do": [2, 1], "wo": [1, 0], "za": [1, 0]}
+# formatted as "day": {location: team_count}
+# Build from config
+dag_teams: Dict[str, Dict[str, int]] = {}
+for loc in _LOC_CONF.get("locations", []):
+    name = loc.get("name")
+    for day, count in loc.get("teams_per_day", {}).items():
+        dag_teams.setdefault(day, {})[name] = int(count)
 
 
 # Genereer alle datums tussen start en eind die op weekdagen vallen
@@ -94,7 +99,7 @@ def csv_to_shiftlist(csv_path: str, plan: Optional[Dict[str, Dict[str, int]]] = 
                 continue
             weekday = get_weekday_from_date(dt)
             counts = plan.get(date, {})
-            for loc in ("Utrecht", "Amersfoort"):
+            for loc in _LOCATIONS:
                 n = int(counts.get(loc, 0) or 0)
                 for i in range(max(0, n)):
                     shift_list.append(create_shift_dict(loc, weekday, date, i))
@@ -122,16 +127,11 @@ def csv_to_shiftlist(csv_path: str, plan: Optional[Dict[str, Dict[str, int]]] = 
         print(f"Date columns found: {date_columns} ")
         for date in date_columns:
             weekday: str = get_weekday_from_date(datetime.strptime(date, "%Y-%m-%d"))
-            for i in range(dag_teams.get(weekday, [0, 0])[0]):
-                new_shift: dict[str, int | str] = create_shift_dict(
-                    "Utrecht", weekday, date, i
-                )
-                shift_list.append(new_shift)
-            for i in range(dag_teams.get(weekday, [0, 0])[1]):
-                new_shift = create_shift_dict(
-                    "Amersfoort", weekday, date, i
-                )
-                shift_list.append(new_shift)
+            # Use configured counts per location for that weekday
+            for loc, count in dag_teams.get(weekday, {}).items():
+                for i in range(count):
+                    new_shift = create_shift_dict(loc, weekday, date, i)
+                    shift_list.append(new_shift)
 
     return shift_list
 
@@ -141,17 +141,12 @@ def get_weekday_from_date(date_obj):
 
 def create_shift_list_from_daterange():
     dates_by_day = get_dates_by_daynames(startdatum, einddatum, weekdagen)
-    for location in locations:
-        if location == "Utrecht":
-            for team in utrecht_teams:
-                for day in utrecht_days:
-                    for date in dates_by_day[day]:
-                        shift_list.append(create_shift_dict(location, day, date, team))
-        elif location == "Amersfoort":
-            for team in amersfoort_teams:
-                for day in amersfoort_days:
-                    for date in dates_by_day[day]:
-                        shift_list.append(create_shift_dict(location, day, date, team))
+    for location in _LOCATIONS:
+        per_day = _LOC_TEAMS_PER_DAY.get(location, {})
+        for day, count in per_day.items():
+            for date in dates_by_day.get(day, []):
+                for team in range(int(count)):
+                    shift_list.append(create_shift_dict(location, day, date, team))
 
 
 # import_shifts_from_preferences("Test_Data_sanitized_oktober.csv")

@@ -1,0 +1,7 @@
+{
+  "default_persons_csv": "data/Data_sanitized_OKT-DEC2025.csv",
+  "uploaded_glob": "data/uploaded_*.csv",
+  "roster_csv": "rooster.csv",
+  "penalties_csv": "penalties.csv",
+  "penalties_summary_csv": "penalties_summary.csv"
+}

@@ -10,6 +10,7 @@ import streamlit as st
 
 from persons import csv_to_personlist
 from shift_list import dag_teams, get_weekday_from_date
+from config import get_locations_config
 
 
 def _find_windows_python_in_venv(root: Path) -> Optional[Path]:
@@ -89,7 +90,6 @@ def render_generator_page() -> None:
             preview_ok = True
         except Exception:
             st.caption("Kon geen tabelvoorbeeld maken; bestand kan tab-delimited zijn.")
-
         # Build initial per-date, per-location shift plan from default dag_teams
         try:
             # Infer dates from persons availability for the plan (union of availability keys)
@@ -107,15 +107,19 @@ def render_generator_page() -> None:
                         date_keys.add(k)
             # Sort
             date_list = sorted(date_keys)
-            # Default counts based on weekday and dag_teams
+            # Default counts based on weekday and dag_teams; support arbitrary locations
             initial_plan = {}
+            locs = [loc.get("name") for loc in get_locations_config().get("locations", [])]
             for d in date_list:
                 try:
                     wd = get_weekday_from_date(_dt.strptime(d, "%Y-%m-%d"))
                 except Exception:
                     continue
-                counts = dag_teams.get(wd, [0, 0])
-                initial_plan[d] = {"Utrecht": counts[0], "Amersfoort": counts[1]}
+                # Map for this weekday: {location: count}
+                weekday_counts = dag_teams.get(wd, {})
+                # Initialize with all known locations
+                row = {loc: int(weekday_counts.get(loc, 0)) for loc in locs}
+                initial_plan[d] = row
 
             st.subheader("Shifts per datum en locatie (bewerkbaar)")
             # Editable grid via Streamlit inputs
@@ -124,7 +128,7 @@ def render_generator_page() -> None:
                 df_plan = (
                     pd.DataFrame.from_dict(initial_plan, orient="index").reset_index()
                 )
-                df_plan.columns = ["date", "Utrecht", "Amersfoort"]
+                df_plan = df_plan.rename(columns={"index": "date"})
                 df_plan = df_plan.sort_values("date")
                 # Use experimental data_editor if available, else two number_inputs per row
                 try:
@@ -132,41 +136,27 @@ def render_generator_page() -> None:
                         df_plan,
                         num_rows="fixed",
                         use_container_width=True,
-                        column_config={
-                            "Utrecht": st.column_config.NumberColumn(
-                                min_value=0, step=1
-                            ),
-                            "Amersfoort": st.column_config.NumberColumn(
-                                min_value=0, step=1
-                            ),
-                        },
+                        column_config={col: st.column_config.NumberColumn(min_value=0, step=1) for col in df_plan.columns if col != "date"},
                     )
                     for _, row in edited.iterrows():
-                        edited_plan[row["date"]] = {
-                            "Utrecht": int(row["Utrecht"]) if pd.notna(row["Utrecht"]) else 0,
-                            "Amersfoort": int(row["Amersfoort"]) if pd.notna(row["Amersfoort"]) else 0,
-                        }
+                        dct = {col: int(row[col]) if pd.notna(row[col]) else 0 for col in df_plan.columns if col != "date"}
+                        edited_plan[row["date"]] = dct
                 except Exception:
                     # Fallback simple editor
                     for _, row in df_plan.iterrows():
-                        c1, c2, c3 = st.columns([2, 1, 1])
-                        with c1:
+                        cols = st.columns([2] + [1] * (len(df_plan.columns) - 1))
+                        with cols[0]:
                             st.write(row["date"])  # label
-                        with c2:
-                            u = st.number_input(
-                                f"Utrecht {row['date']}",
-                                min_value=0,
-                                step=1,
-                                value=int(row["Utrecht"]),
-                            )
-                        with c3:
-                            a = st.number_input(
-                                f"Amersfoort {row['date']}",
-                                min_value=0,
-                                step=1,
-                                value=int(row["Amersfoort"]),
-                            )
-                        edited_plan[row["date"]] = {"Utrecht": int(u), "Amersfoort": int(a)}
+                        updates = {}
+                        for idx, col in enumerate([c for c in df_plan.columns if c != "date" ], start=1):
+                            with cols[idx]:
+                                updates[col] = st.number_input(
+                                    f"{col} {row['date']}",
+                                    min_value=0,
+                                    step=1,
+                                    value=int(row[col]) if pd.notna(row[col]) else 0,
+                                )
+                        edited_plan[row["date"]] = {k: int(v) for k, v in updates.items()}
             else:
                 st.info("Geen datums gevonden om een shiftplan te maken.")
 

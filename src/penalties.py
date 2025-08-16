@@ -29,21 +29,41 @@ def compute_location_penalty_rows(
     rows: List[Dict[str, Any]] = []
     for t_idx, tester in enumerate(person_list):
         for s_idx, shift in enumerate(shift_list):
-            if shift["location"] != tester["pref_location"] and _assigned(
-                solver, assignment_vars[(t_idx, s_idx)]
-            ):
-                rows.append(
-                    {
-                        "component": "location",
-                        "person": tester["name"],
-                        "date": shift["date"],
-                        "day": shift["day"],
-                        "location": shift["location"],
-                        "team": shift["team"],
-                        "units": 1,
-                        "weighted": weight,
-                    }
-                )
+            assigned = _assigned(solver, assignment_vars[(t_idx, s_idx)])
+            if not assigned:
+                continue
+            flags = tester.get("pref_loc_flags", {})
+            if flags:
+                flag = flags.get(shift["location"], 2)
+                # 0: hard banned (should not occur if constraints applied), 1: penalize, 2: no penalty
+                if flag == 1:
+                    rows.append(
+                        {
+                            "component": "location",
+                            "person": tester["name"],
+                            "date": shift["date"],
+                            "day": shift["day"],
+                            "location": shift["location"],
+                            "team": shift["team"],
+                            "units": 1,
+                            "weighted": weight,
+                        }
+                    )
+            else:
+                # Legacy behavior: penalize when not on single preferred location
+                if shift["location"] != tester.get("pref_location"):
+                    rows.append(
+                        {
+                            "component": "location",
+                            "person": tester["name"],
+                            "date": shift["date"],
+                            "day": shift["day"],
+                            "location": shift["location"],
+                            "team": shift["team"],
+                            "units": 1,
+                            "weighted": weight,
+                        }
+                    )
     return rows
 
 
@@ -170,27 +190,33 @@ def compute_monthly_avg_rows(
     shift_list: List[Dict[str, Any]],
     weight: int,
 ) -> List[Dict[str, Any]]:
-    month_to_shifts: Dict[int, List[int]] = defaultdict(list)
-    for s_idx, shift in enumerate(shift_list):
-        m = datetime.strptime(shift["date"], "%Y-%m-%d").month
-        month_to_shifts[m].append(s_idx)
+    # Determine distinct year-months present in the roster and total shifts
+    ym_keys = set()
+    for shift in shift_list:
+        d = datetime.strptime(shift["date"], "%Y-%m-%d")
+        ym_keys.add((d.year, d.month))
+    n_months = len(ym_keys) if ym_keys else 0
 
     rows: List[Dict[str, Any]] = []
+    total_shifts = len(shift_list)
     for t_idx, tester in enumerate(person_list):
-        target = int(tester.get("month_avg", 0))
-        for m, s_indices in month_to_shifts.items():
-            assigned = sum(_assigned(solver, assignment_vars[(t_idx, s)]) for s in s_indices)
-            deficit = max(0, target - assigned)
-            if deficit > 0:
-                rows.append(
-                    {
-                        "component": "monthly_avg",
-                        "person": tester["name"],
-                        "month": m,
-                        "assigned_in_month": assigned,
-                        "avg": target,
-                        "units": deficit,
-                        "weighted": deficit * weight,
-                    }
-                )
+        per_month = int(tester.get("month_avg", 0))
+        target_total = per_month * n_months
+        assigned_total = sum(_assigned(solver, assignment_vars[(t_idx, s)]) for s in range(total_shifts))
+        deficit = max(0, target_total - assigned_total)
+        # Quadratic cost: weight * deficit^2
+        weighted = weight * (deficit * deficit)
+        if deficit > 0:
+            rows.append(
+                {
+                    "component": "monthly_avg",
+                    "person": tester["name"],
+                    "months": n_months,
+                    "assigned_total": assigned_total,
+                    "avg_per_month": per_month,
+                    "target_total": target_total,
+                    "units": deficit,
+                    "weighted": weighted,
+                }
+            )
     return rows

@@ -19,6 +19,14 @@ def add_availability_constraints(model, assignment_vars, person_list, shift_list
                 _log(
                     f"Adding constraint for {tester['name']} on {shift['day']} (not available)"
                 )
+            # New: hard location ban if Pref_Loc flag for location is 0
+            flags = tester.get("pref_loc_flags", {})
+            loc_flag = flags.get(shift["location"])
+            if loc_flag == 0:
+                model.Add(assignment_vars[(t_idx, s_idx)] == 0)
+                _log(
+                    f"Adding hard location ban for {tester['name']} at {shift['location']} on {shift['date']}"
+                )
 
 
 # Constraint 2: Maximaal 1 shift per dag per persoon
