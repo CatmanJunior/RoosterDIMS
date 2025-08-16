@@ -120,6 +120,46 @@ def compute_fairness_rows(
     ]
 
 
+def compute_weekly_multi_rows(
+    assignment_vars,
+    solver,
+    person_list: List[Dict[str, Any]],
+    shift_list: List[Dict[str, Any]],
+    weight: int,
+) -> List[Dict[str, Any]]:
+    """Penalize more than 1 assignment in the same ISO week for the same person.
+
+    For each person/week: units = max(0, assigned_in_week - 1)
+    weighted = units * weight
+    """
+    from datetime import datetime as _dt
+    # Build week mapping
+    week_to_shifts: Dict[Tuple[int, int], List[int]] = {}
+    for s_idx, shift in enumerate(shift_list):
+        d = _dt.strptime(shift["date"], "%Y-%m-%d")
+        iso_year, iso_week, _ = d.isocalendar()
+        week_to_shifts.setdefault((iso_year, iso_week), []).append(s_idx)
+
+    rows: List[Dict[str, Any]] = []
+    for t_idx, tester in enumerate(person_list):
+        for (y, w), s_indices in week_to_shifts.items():
+            assigned = sum(_assigned(solver, assignment_vars[(t_idx, s)]) for s in s_indices)
+            units = max(0, assigned - 1)
+            if units > 0:
+                rows.append(
+                    {
+                        "component": "weekly_multi",
+                        "person": tester["name"],
+                        "iso_year": y,
+                        "iso_week": w,
+                        "assigned_in_week": assigned,
+                        "units": units,
+                        "weighted": units * weight,
+                    }
+                )
+    return rows
+
+
 def export_penalties(
     filepath: str,
     assignment_vars,
@@ -151,6 +191,12 @@ def export_penalties(
         assignment_vars, solver, person_list, shift_list, weights.get("monthly_avg", 1)
     )
     all_rows.extend(avg_rows)
+
+    # Weekly multi-assignments
+    weekly_rows = compute_weekly_multi_rows(
+        assignment_vars, solver, person_list, shift_list, weights.get("weekly_multi", 1)
+    )
+    all_rows.extend(weekly_rows)
 
     # Aggregate totals
     total_weighted = sum(r.get("weighted", 0) for r in all_rows)

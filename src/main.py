@@ -3,6 +3,7 @@ from datetime import datetime
 import argparse
 import sys
 from export import export_to_csv
+from pathlib import Path
 from config import get_data_sources_config
 from persons import csv_to_personlist
 from shift_list import Filled_Shift, csv_to_shiftlist
@@ -47,6 +48,7 @@ EVEN_SHIFTS_WEIGHT = 5
 PREF_LOCATION_WEIGHT = 1
 MONTHLY_MAX_WEIGHT = 100  # penalty weight for exceeding personal monthly caps
 MONTHLY_AVG_WEIGHT = 20  # penalty weight for not reaching personal monthly average
+WEEKLY_MULTI_WEIGHT = 15  # penalty weight per extra shift beyond 1 per week
 
 model = cp_model.CpModel()
 csv_file = args.csv_file
@@ -113,6 +115,11 @@ def add_constraints(model, assignment_vars):
         model, assignment_vars, person_list, shift_list, MONTHLY_AVG_WEIGHT
     )
 
+    # Build weekly multiple-assignments excess vars: max(0, assigned_in_week - 1)
+    weekly_multi_excess_vars = build_weekly_multi_excess_vars(
+        model, assignment_vars, person_list, shift_list
+    )
+
     # Constraint 5: Evenwichtige verdeling van shifts
     shifts_per_tester = [
         sum(assignment_vars[(t_idx, s_idx)] for s_idx in range(len(shift_list)))
@@ -155,7 +162,10 @@ def add_constraints(model, assignment_vars):
         +
         # Niet halen van persoonlijke maandgemiddelde (shortfall):
         # non-linear quadratic cost already scaled by MONTHLY_AVG_WEIGHT
-        sum(monthly_avg_cost_vars)
+    sum(monthly_avg_cost_vars)
+    +
+    # Meer dan 1 shift in dezelfde week voor dezelfde persoon
+    sum(weekly_multi_excess_vars) * WEEKLY_MULTI_WEIGHT
     )
 
 
@@ -248,6 +258,37 @@ def build_monthly_avg_cost_vars(model, assignment_vars, person_list, shift_list,
     return cost_vars
 
 
+def build_weekly_multi_excess_vars(model, assignment_vars, person_list, shift_list):
+    """Create auxiliary vars for per-person, per-week extra assignments beyond 1.
+
+    For each person and ISO (year, week):
+      diff = (assigned_in_week) - 1
+      excess = max(diff, 0)
+    Return list of excess vars to be summed in the objective.
+    """
+    from datetime import datetime as _dt
+
+    # Map: (iso_year, iso_week) -> list of shift indices
+    week_to_shifts = {}
+    for s_idx, shift in enumerate(shift_list):
+        d = _dt.strptime(shift["date"], "%Y-%m-%d")
+        iso_year, iso_week, _ = d.isocalendar()
+        week_to_shifts.setdefault((iso_year, iso_week), []).append(s_idx)
+
+    zero = model.NewIntVar(0, 0, "zero_const_week")
+    excess_vars = []
+    for t_idx, _tester in enumerate(person_list):
+        for (y, w), week_shifts in week_to_shifts.items():
+            mcount = len(week_shifts)
+            # diff in [-1, mcount-1]
+            diff = model.NewIntVar(-1, max(0, mcount - 1), f"wk_diff_p{t_idx}_{y}w{w}")
+            model.Add(diff == sum(assignment_vars[(t_idx, s)] for s in week_shifts) - 1)
+            excess = model.NewIntVar(0, max(0, mcount - 1), f"wk_excess_p{t_idx}_{y}w{w}")
+            model.AddMaxEquality(excess, [diff, zero])
+            excess_vars.append(excess)
+    return excess_vars
+
+
 def run_model():
     solver = cp_model.CpSolver()
     # solver.parameters.log_search_progress = True
@@ -292,10 +333,21 @@ if __name__ == "__main__":
 
         print_filled_shifts(filled_shifts)
         print_shift_count_per_person(assignment_vars, solver, shift_list, person_list)
-        export_to_csv([entry.to_dict() for entry in filled_shifts], "rooster.csv")
-        # Export penalties breakdown
+
+        # Resolve export paths from config and ensure directory exists
+        ds_conf = get_data_sources_config()
+        roster_path = ds_conf.get("roster_csv", "rooster.csv")
+        penalties_path = ds_conf.get("penalties_csv", "penalties.csv")
+        try:
+            Path(roster_path).parent.mkdir(parents=True, exist_ok=True)
+            Path(penalties_path).parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+
+        export_to_csv([entry.to_dict() for entry in filled_shifts], roster_path)
+        # Export penalties breakdown (summary will be written next to penalties_path as *_summary.csv)
         export_penalties(
-            filepath="penalties.csv",
+            filepath=penalties_path,
             assignment_vars=assignment_vars,
             solver=solver,
             person_list=person_list,
@@ -305,6 +357,7 @@ if __name__ == "__main__":
                 "fairness": EVEN_SHIFTS_WEIGHT,
                 "monthly": MONTHLY_MAX_WEIGHT,
                 "monthly_avg": MONTHLY_AVG_WEIGHT,
+                "weekly_multi": WEEKLY_MULTI_WEIGHT,
             },
         )
     else:

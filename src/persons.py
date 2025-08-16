@@ -10,37 +10,68 @@ def is_date_field(keyname):
 
 def csv_to_personlist(csv_path):
     person_list = []
-    with open(csv_path, newline="", encoding="utf-8") as csvfile:
-        reader = csv.DictReader(csvfile)
+    # Auto-detect delimiter (comma, semicolon, or tab) and strip BOM if present
+    with open(csv_path, "r", newline="", encoding="utf-8-sig") as csvfile:
+        sample = csvfile.read(4096)
+        csvfile.seek(0)
+        try:
+            dialect = csv.Sniffer().sniff(sample, delimiters=",	;")
+            delimiter = dialect.delimiter
+        except Exception:
+            delimiter = ","
+
+        reader = csv.DictReader(csvfile, delimiter=delimiter)
+
+        def _safe_str(v: object, default: str = "") -> str:
+            return default if v is None else str(v)
+
+        def _safe_int(v: object, default: int = 0) -> int:
+            try:
+                s = _safe_str(v, "").strip()
+                return int(s) if s != "" else default
+            except Exception:
+                return default
+
+        def _to_bool(v: object) -> bool:
+            if isinstance(v, bool):
+                return v
+            s = _safe_str(v, "").strip().lower()
+            return s in {"true", "1", "yes", "y", "ja"}
+
         for row in reader:
-            naam = row["Name"].strip()
-            rol = "T" if row["Tester"].strip().upper() == "TRUE" else "P"
+            naam = _safe_str(row.get("Name") or row.get("name"), "").strip()
+            if not naam:
+                raise ValueError("CSV mist kolom 'Name' of bevat lege namen.")
+
+            tester_val = _safe_str(row.get("Tester") or row.get("tester"), "").strip()
+            rol = "T" if tester_val.upper() == "TRUE" or tester_val == "1" else "P"
+
             # Backward compatibility: optional single preferred location string
-            pref_loc = row.get("Pref_Loc", "").strip()
+            pref_loc = _safe_str(row.get("Pref_Loc"), "").strip()
+
             # New flags: Pref_Loc_0 (Utrecht), Pref_Loc_1 (Amersfoort)
             def _parse_flag(val, default=2):
-                try:
-                    return int(str(val).strip())
-                except Exception:
-                    return default
+                return _safe_int(val, default)
+
             pref_loc_0 = _parse_flag(row.get("Pref_Loc_0", 2))  # 0=forbidden, 1=penalize, 2=no penalty
             pref_loc_1 = _parse_flag(row.get("Pref_Loc_1", 2))
             pref_loc_flags = {
                 "Utrecht": pref_loc_0,
                 "Amersfoort": pref_loc_1,
             }
-            beschikbaar = {}
-            month_max = int(row["Month_max"].strip())
-            month_avg = int(row["Month_avg"].strip())
 
-            for key in row:
-                if is_date_field(key):
+            beschikbaar = {}
+            month_max = _safe_int(row.get("Month_max"), 0)
+            month_avg = _safe_int(row.get("Month_avg"), 0)
+
+            for key in row.keys():
+                if is_date_field(str(key)):
                     try:
-                        date_obj = datetime.strptime(key.strip(), "%d-%m")
+                        date_obj = datetime.strptime(str(key).strip(), "%d-%m")
                         date_str = f"2025-{date_obj.month:02d}-{date_obj.day:02d}"
                     except ValueError:
-                        date_str = key.strip()
-                    beschikbaar[date_str] = row[key].strip().upper() == "TRUE"
+                        date_str = str(key).strip()
+                    beschikbaar[date_str] = _to_bool(row.get(key))
 
             person = {
                 "name": naam,

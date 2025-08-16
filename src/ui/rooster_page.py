@@ -55,10 +55,11 @@ def render_rooster_page() -> None:
                     csv_path = None
         if not csv_path:
             root = Path(__file__).resolve().parents[2]
-            data_dir = root / "data"
             try:
+                from config import get_data_sources_config as _g
+                pattern = _g().get("uploaded_glob", "data/preferences/uploaded_*.csv")
                 uploaded = sorted(
-                    [p for p in data_dir.glob("uploaded_*.csv")],
+                    [p for p in root.glob(pattern)],
                     key=lambda p: p.stat().st_mtime,
                     reverse=True,
                 )

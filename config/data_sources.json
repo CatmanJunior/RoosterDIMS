@@ -1,7 +1,9 @@
 {
-  "default_persons_csv": "data/Data_sanitized_OKT-DEC2025.csv",
-  "uploaded_glob": "data/uploaded_*.csv",
-  "roster_csv": "rooster.csv",
-  "penalties_csv": "penalties.csv",
-  "penalties_summary_csv": "penalties_summary.csv"
+  "default_persons_csv": "data/preferences/Data_sanitized_OKT-DEC2025.csv",
+  "preferences_dir": "data/preferences",
+  "uploaded_glob": "data/preferences/uploaded_*.csv",
+  "roster_csv": "data/generated/rooster.csv",
+  "penalties_csv": "data/generated/penalties.csv",
+  "penalties_summary_csv": "data/generated/penalties_summary.csv",
+  "enable_auth": true
 }

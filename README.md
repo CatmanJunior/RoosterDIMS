@@ -8,6 +8,7 @@ A CP-SAT based roster generator with a Streamlit UI.
   - Create/activate a virtualenv (optional) and install requirements with `pip install -r requirements.txt`.
 - Run the UI:
   - `streamlit run src/ui/app.py`
+- test login: u:alice ww:haha
 - Generate a roster via the "Generator" tab, then explore results in the other tabs.
 
 ## CLI
