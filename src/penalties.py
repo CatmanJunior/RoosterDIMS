@@ -67,6 +67,48 @@ def compute_location_penalty_rows(
     return rows
 
 
+def compute_monthly_min_avail_rows(
+    assignment_vars,
+    solver,
+    person_list: List[Dict[str, Any]],
+    shift_list: List[Dict[str, Any]],
+    weight: int,
+) -> List[Dict[str, Any]]:
+    """Rows for: if a person was available in a month, but assigned 0 shifts in that month => 1 unit penalty."""
+    month_to_shifts: Dict[int, List[int]] = defaultdict(list)
+    for s_idx, shift in enumerate(shift_list):
+        m = datetime.strptime(shift["date"], "%Y-%m-%d").month
+        month_to_shifts[m].append(s_idx)
+
+    rows: List[Dict[str, Any]] = []
+    for t_idx, tester in enumerate(person_list):
+        avail_map = tester.get("availability", {}) or {}
+        months_available = set()
+        for dstr, ok in avail_map.items():
+            try:
+                if ok:
+                    m = datetime.strptime(dstr, "%Y-%m-%d").month
+                    months_available.add(m)
+            except Exception:
+                continue
+        for m, s_indices in month_to_shifts.items():
+            if m not in months_available:
+                continue
+            assigned = sum(_assigned(solver, assignment_vars[(t_idx, s)]) for s in s_indices)
+            if assigned == 0:
+                rows.append(
+                    {
+                        "component": "monthly_min_avail",
+                        "person": tester["name"],
+                        "month": m,
+                        "assigned_in_month": assigned,
+                        "units": 1,
+                        "weighted": weight,
+                    }
+                )
+    return rows
+
+
 def compute_monthly_excess_rows(
     assignment_vars,
     solver,
@@ -191,6 +233,12 @@ def export_penalties(
         assignment_vars, solver, person_list, shift_list, weights.get("monthly_avg", 1)
     )
     all_rows.extend(avg_rows)
+
+    # Monthly minimum availability penalty rows
+    min_av_rows = compute_monthly_min_avail_rows(
+        assignment_vars, solver, person_list, shift_list, weights.get("monthly_min_avail", 1)
+    )
+    all_rows.extend(min_av_rows)
 
     # Weekly multi-assignments
     weekly_rows = compute_weekly_multi_rows(

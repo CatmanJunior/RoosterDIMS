@@ -1,5 +1,5 @@
 {
-  "default_persons_csv": "data/preferences/Data_sanitized_OKT-DEC2025.csv",
+  "default_persons_csv": "data/preferences/Data_sanitized_OKT-DEC2025(2).csv",
   "preferences_dir": "data/preferences",
   "uploaded_glob": "data/preferences/uploaded_*.csv",
   "roster_csv": "data/generated/rooster.csv",

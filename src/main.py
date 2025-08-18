@@ -49,6 +49,7 @@ PREF_LOCATION_WEIGHT = 1
 MONTHLY_MAX_WEIGHT = 100  # penalty weight for exceeding personal monthly caps
 MONTHLY_AVG_WEIGHT = 20  # penalty weight for not reaching personal monthly average
 WEEKLY_MULTI_WEIGHT = 15  # penalty weight per extra shift beyond 1 per week
+MONTHLY_MIN_AVAIL_WEIGHT = 50  # penalty: available in month but assigned 0 shifts
 
 model = cp_model.CpModel()
 csv_file = args.csv_file
@@ -120,6 +121,11 @@ def add_constraints(model, assignment_vars):
         model, assignment_vars, person_list, shift_list
     )
 
+    # Build per-person/month indicator vars for missing assignment while available
+    monthly_min_avail_missing_vars = build_monthly_min_avail_missing_vars(
+        model, assignment_vars, person_list, shift_list
+    )
+
     # Constraint 5: Evenwichtige verdeling van shifts
     shifts_per_tester = [
         sum(assignment_vars[(t_idx, s_idx)] for s_idx in range(len(shift_list)))
@@ -166,6 +172,9 @@ def add_constraints(model, assignment_vars):
     +
     # Meer dan 1 shift in dezelfde week voor dezelfde persoon
     sum(weekly_multi_excess_vars) * WEEKLY_MULTI_WEIGHT
+    +
+    # Per-month minimum: if a person was available in that month but got 0 shifts
+    sum(monthly_min_avail_missing_vars) * MONTHLY_MIN_AVAIL_WEIGHT
     )
 
 
@@ -289,6 +298,45 @@ def build_weekly_multi_excess_vars(model, assignment_vars, person_list, shift_li
     return excess_vars
 
 
+def build_monthly_min_avail_missing_vars(model, assignment_vars, person_list, shift_list):
+    """For each person and each month present in shift_list, if the person has any
+    availability True in that month but is assigned zero shifts in that month,
+    create a BoolVar 'missing' that is 1; otherwise 0. Return list of these vars.
+    """
+    # Month -> shift indices in that month
+    month_to_shifts = {}
+    for s_idx, shift in enumerate(shift_list):
+        m = datetime.strptime(shift["date"], "%Y-%m-%d").month
+        month_to_shifts.setdefault(m, []).append(s_idx)
+
+    missing_vars = []
+    for t_idx, tester in enumerate(person_list):
+        avail_map = tester.get("availability", {}) or {}
+        # Precompute months where this person has at least one available day
+        months_available = set()
+        for dstr, ok in avail_map.items():
+            try:
+                if ok:
+                    m = datetime.strptime(dstr, "%Y-%m-%d").month
+                    months_available.add(m)
+            except Exception:
+                continue
+
+        for m, s_indices in month_to_shifts.items():
+            if m not in months_available:
+                continue  # no requirement if they were never available that month
+            # Sum of assignments this month
+            assigned_sum = model.NewIntVar(0, len(s_indices), f"ass_sum_p{t_idx}_m{m}")
+            model.Add(assigned_sum == sum(assignment_vars[(t_idx, s)] for s in s_indices))
+            # missing == 1 iff assigned_sum == 0
+            missing = model.NewBoolVar(f"miss_p{t_idx}_m{m}")
+            model.Add(assigned_sum == 0).OnlyEnforceIf(missing)
+            model.Add(assigned_sum >= 1).OnlyEnforceIf(missing.Not())
+            missing_vars.append(missing)
+
+    return missing_vars
+
+
 def run_model():
     solver = cp_model.CpSolver()
     # solver.parameters.log_search_progress = True
@@ -358,6 +406,7 @@ if __name__ == "__main__":
                 "monthly": MONTHLY_MAX_WEIGHT,
                 "monthly_avg": MONTHLY_AVG_WEIGHT,
                 "weekly_multi": WEEKLY_MULTI_WEIGHT,
+                "monthly_min_avail": MONTHLY_MIN_AVAIL_WEIGHT,
             },
         )
     else:

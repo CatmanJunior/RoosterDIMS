@@ -32,6 +32,19 @@ shift_list = []
 _LOC_CONF = get_locations_config()
 _LOCATIONS = [loc["name"] for loc in _LOC_CONF.get("locations", [])]
 _LOC_TEAMS_PER_DAY = {loc["name"]: loc.get("teams_per_day", {}) for loc in _LOC_CONF.get("locations", [])}
+# New: optional per-date team counts configured per location
+_LOC_TEAMS_PER_DATE = {loc["name"]: loc.get("teams_per_date", {}) for loc in _LOC_CONF.get("locations", [])}
+
+# Build a consolidated {date: {location: count}} plan from teams_per_date
+_PLAN_FROM_CONF: Dict[str, Dict[str, int]] = {}
+for loc_name, date_map in _LOC_TEAMS_PER_DATE.items():
+    for date_str, count in (date_map or {}).items():
+        try:
+            # validate date
+            datetime.strptime(date_str, "%Y-%m-%d")
+        except Exception:
+            continue
+        _PLAN_FROM_CONF.setdefault(date_str, {})[loc_name] = int(count or 0)
 
 # Geef hier de gewenste weekdagen op en de start/einddatum
 weekdagen = ["di", "do"]
@@ -88,6 +101,7 @@ def csv_to_shiftlist(csv_path: str, plan: Optional[Dict[str, Dict[str, int]]] = 
     """
     shift_list: list[dict[str, int | str]] = []
 
+    # 1) If an explicit plan is provided (e.g., via --shift-plan), use that
     if plan:
         # Use explicit plan; date keys drive the generation
         for date in sorted(plan.keys()):
@@ -99,6 +113,21 @@ def csv_to_shiftlist(csv_path: str, plan: Optional[Dict[str, Dict[str, int]]] = 
                 continue
             weekday = get_weekday_from_date(dt)
             counts = plan.get(date, {})
+            for loc in _LOCATIONS:
+                n = int(counts.get(loc, 0) or 0)
+                for i in range(max(0, n)):
+                    shift_list.append(create_shift_dict(loc, weekday, date, i))
+        return shift_list
+
+    # 2) If no explicit plan, but teams_per_date exists in locations config, use that
+    if _PLAN_FROM_CONF:
+        for date in sorted(_PLAN_FROM_CONF.keys()):
+            try:
+                dt = datetime.strptime(date, "%Y-%m-%d")
+            except ValueError:
+                continue
+            weekday = get_weekday_from_date(dt)
+            counts = _PLAN_FROM_CONF.get(date, {})
             for loc in _LOCATIONS:
                 n = int(counts.get(loc, 0) or 0)
                 for i in range(max(0, n)):

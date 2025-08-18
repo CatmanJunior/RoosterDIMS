@@ -1,5 +1,7 @@
 from datetime import datetime
 import os
+from typing import Dict
+from config import get_locations_config
 
 def _log(msg: str) -> None:
     """Print only when ROOSTER_VERBOSE env var is truthy."""
@@ -49,14 +51,33 @@ def add_max_shifts_per_day_constraints(
 
 # Constraint 3: Precies 2 testers per shift
 def add_exactly_x_testers_per_shift_constraints(
-    model, assignment_vars, shift_list, person_list, x=2
+    model, assignment_vars, shift_list, person_list, x: int = 2
 ):
+    """Enforce the exact number of testers per shift.
+
+    Behavior:
+    - If a shift's location has "peers": 0 in config/locations.json, then that shift
+      requires exactly 1 tester (1 T, no peer).
+    - Otherwise, use the legacy rule of exactly `x` testers (default 2).
+    """
+    # Build a map {location_name: peers_flag}
+    loc_conf = get_locations_config()
+    loc_peers: Dict[str, int] = {
+        loc.get("name"): int(loc.get("peers", 1)) for loc in loc_conf.get("locations", [])
+    }
+
     for s_idx, shift in enumerate(shift_list):
+        loc = shift["location"]
+        peers_flag = loc_peers.get(loc, 1)
+        required_testers = 1 if peers_flag == 0 else x
+
         model.Add(
             sum(assignment_vars[(t_idx, s_idx)] for t_idx in range(len(person_list)))
-            == x
+            == required_testers
         )
-        _log(f"Adding constraint for exactly {x} testers on shift {s_idx}")
+        _log(
+            f"Adding constraint for exactly {required_testers} testers on shift {s_idx} (loc={loc}, peers={peers_flag})"
+        )
 
 
 # Constraint 4: Minimaal 1 eerste tester per shift

@@ -55,9 +55,11 @@ def csv_to_personlist(csv_path):
 
             pref_loc_0 = _parse_flag(row.get("Pref_Loc_0", 2))  # 0=forbidden, 1=penalize, 2=no penalty
             pref_loc_1 = _parse_flag(row.get("Pref_Loc_1", 2))
+            pref_loc_2 = _parse_flag(row.get("Pref_Loc_2", 2))
             pref_loc_flags = {
                 "Utrecht": pref_loc_0,
                 "Amersfoort": pref_loc_1,
+                "Uitslagen": pref_loc_2,
             }
 
             beschikbaar = {}
