@@ -10,7 +10,7 @@ import streamlit as st
 
 from persons import csv_to_personlist
 from shift_list import dag_teams, get_weekday_from_date
-from config import get_locations_config, get_data_sources_config
+from config import get_locations_config, get_data_sources_config, get_weights_config
 
 
 def _find_windows_python_in_venv(root: Path) -> Optional[Path]:
@@ -82,7 +82,7 @@ def render_generator_page() -> None:
         except Exception:
             st.caption("Kon geen tabelvoorbeeld maken; bestand kan tab-delimited zijn.")
 
-        # Build initial per-date, per-location shift plan
+        # Build initial per-date, per-location shift plan (from locations config, fallback to weekday defaults)
         try:
             date_keys = set()
             for p in persons if isinstance(persons, list) else []:
@@ -92,16 +92,30 @@ def render_generator_page() -> None:
                         date_keys.add(k)
             date_list = sorted(date_keys)
 
+            # Seed from locations.json teams_per_date if present
+            loc_conf = get_locations_config()
+            locs = [loc.get("name") for loc in loc_conf.get("locations", [])]
             initial_plan = {}
-            locs = [loc.get("name") for loc in get_locations_config().get("locations", [])]
+            # add dates present in config
+            for loc in loc_conf.get("locations", []):
+                name = loc.get("name")
+                for d, count in (loc.get("teams_per_date") or {}).items():
+                    if isinstance(d, str) and len(d) == 10 and d[4] == "-" and d[7] == "-":
+                        date_list.append(d)
+                        initial_plan.setdefault(d, {loc_name: 0 for loc_name in locs})
+                        initial_plan[d][name] = int(count or 0)
+            date_list = sorted(set(date_list))
+
+            # Fill missing dates using weekday defaults
             for d in date_list:
-                try:
-                    wd = get_weekday_from_date(_dt.strptime(d, "%Y-%m-%d"))
-                except Exception:
-                    continue
-                weekday_counts = dag_teams.get(wd, {})
-                row = {loc: int(weekday_counts.get(loc, 0)) for loc in locs}
-                initial_plan[d] = row
+                if d not in initial_plan:
+                    try:
+                        wd = get_weekday_from_date(_dt.strptime(d, "%Y-%m-%d"))
+                    except Exception:
+                        continue
+                    weekday_counts = dag_teams.get(wd, {})
+                    row = {loc: int(weekday_counts.get(loc, 0)) for loc in locs}
+                    initial_plan[d] = row
 
             st.subheader("Shifts per datum en locatie (bewerkbaar)")
             edited_plan = {}
@@ -136,31 +150,113 @@ def render_generator_page() -> None:
             else:
                 st.info("Geen datums gevonden om een shiftplan te maken.")
 
-            # Persist the edited plan to JSON for main.py
-            plan_path = None
+            # Write edited plan into config/locations.json under teams_per_date per location
             if edited_plan:
-                import json
-                plan_path = plan_dir / "shift_plan.json"
-                with open(plan_path, "w", encoding="utf-8") as fh:
-                    json.dump(edited_plan, fh, ensure_ascii=False, indent=2)
+                import json as _json
+                # Build per-location mapping
+                per_loc: dict[str, dict[str, int]] = {loc_name: {} for loc_name in locs}
+                for d, row in edited_plan.items():
+                    for loc_name in locs:
+                        try:
+                            val = int(row.get(loc_name, 0) or 0)
+                        except Exception:
+                            val = 0
+                        if val > 0:
+                            per_loc[loc_name][d] = val
+
+                # Merge into existing config
+                conf_path = root / "config" / "locations.json"
+                try:
+                    current_conf = _json.loads(conf_path.read_text(encoding="utf-8"))
+                except Exception:
+                    current_conf = loc_conf
+                for loc in current_conf.get("locations", []):
+                    name = loc.get("name")
+                    if name in per_loc:
+                        loc["teams_per_date"] = per_loc[name]
+                try:
+                    conf_path.write_text(_json.dumps(current_conf, ensure_ascii=False, indent=2), encoding="utf-8")
+                    st.success(f"Bijgewerkt: {conf_path.relative_to(root)} (teams_per_date)")
+                except Exception as e:
+                    st.warning(f"Kon locaties-config niet schrijven: {e}")
         except Exception as e:
             st.warning(f"Kon geen bewerkbaar shift-overzicht maken: {e}")
 
-    st.markdown("2) Controleer de waarden. Als alles goed is, genereer het rooster.")
+    st.markdown("2) Stel opties in (constraints & doelen) en pas gewichten aan indien gewenst.")
+
+    # Defaults
+    default_constraints = [
+        "availability",
+        "max_per_day",
+        "exact_testers",
+        "min_first",
+        "max_per_week",
+        "single_first",
+    ]
+    default_objectives = [
+        "location",
+        "fairness",
+        "monthly",
+        "monthly_avg",
+        "weekly_multi",
+        "monthly_min_avail",
+    ]
+
+    with st.expander("Constraints (harde regels)", expanded=True):
+        cols = st.columns(3)
+        cons_selected = []
+        for idx, key in enumerate(default_constraints):
+            with cols[idx % 3]:
+                if st.checkbox(key, value=True, key=f"cons_{key}"):
+                    cons_selected.append(key)
+
+    with st.expander("Doelen/penalties (zachte voorkeuren)", expanded=True):
+        cols = st.columns(3)
+        obj_selected = []
+        for idx, key in enumerate(default_objectives):
+            with cols[idx % 3]:
+                if st.checkbox(key, value=True, key=f"obj_{key}"):
+                    obj_selected.append(key)
+
+    with st.expander("Gewichten voor doelen", expanded=True):
+        weights_conf = get_weights_config()
+        w_inputs = {}
+        cols = st.columns(3)
+        for idx, (k, v) in enumerate(weights_conf.items()):
+            with cols[idx % 3]:
+                try:
+                    w_inputs[k] = st.number_input(
+                        f"{k}", min_value=0, step=1, value=int(v) if isinstance(v, (int, float)) else 0
+                    )
+                except Exception:
+                    w_inputs[k] = v
+
+    st.markdown("3) Controleer de waarden. Als alles goed is, genereer het rooster.")
     disabled = not (selected_any and preview_ok)
-    plan_path = locals().get("plan_path", None)
+    verbose = st.checkbox("Verbose output", value=False)
     if st.button("Genereer rooster (run main.py)", disabled=disabled):
         main_py = root / "src" / "main.py"
         py = _find_windows_python_in_venv(root) or Path(sys.executable)
         cmd = [str(py), "-X", "utf8", str(main_py)]
         if csv_path is not None:
             cmd += ["--csv", str(csv_path)]
-        if plan_path is not None:
-            try:
-                if getattr(plan_path, "exists", lambda: False)():
-                    cmd += ["--shift-plan", str(plan_path)]
-            except Exception:
-                pass
+
+        # Write weights override to JSON and pass path
+        try:
+            weights_path = plan_dir / "weights_override.json"
+            import json as _json
+            weights_path.write_text(_json.dumps(w_inputs, ensure_ascii=False, indent=2), encoding="utf-8")
+            cmd += ["--weights", str(weights_path)]
+        except Exception:
+            pass
+
+        # Pass constraints and objectives selections
+        if cons_selected:
+            cmd += ["--use-constraints", *cons_selected]
+        if obj_selected:
+            cmd += ["--use-objectives", *obj_selected]
+        if verbose:
+            cmd += ["--verbose"]
 
         with st.spinner("Bezig met genereren van rooster..."):
             result = subprocess.run(

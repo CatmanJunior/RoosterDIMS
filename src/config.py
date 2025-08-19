@@ -20,3 +20,11 @@ def get_locations_config() -> Dict[str, Any]:
 
 def get_data_sources_config() -> Dict[str, Any]:
     return load_json("config/data_sources.json")
+
+
+def get_weights_config(path: str | None = None) -> Dict[str, Any]:
+    """Load weights configuration from a JSON file.
+
+    If path is None, loads from default "config/weights.json".
+    """
+    return load_json(path or "config/weights.json")

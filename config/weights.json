@@ -1,0 +1,8 @@
+{
+  "location": 1,
+  "fairness": 5,
+  "monthly": 100,
+  "monthly_avg": 20,
+  "weekly_multi": 15,
+  "monthly_min_avail": 50
+}

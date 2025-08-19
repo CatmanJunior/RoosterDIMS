@@ -15,7 +15,7 @@ A CP-SAT based roster generator with a Streamlit UI.
 
 You can run the solver directly:
 
-- `python -X utf8 src/main.py --csv data/Dummy_Test_Data_sanitized_november.csv [--shift-plan data/shift_plan.json] [--verbose]`
+- `python -X utf8 src/main.py --csv data/Dummy_Test_Data_sanitized_november.csv [--verbose]`
 
 Set `ROOSTER_VERBOSE=1` to see extra constraint logging.
 
@@ -28,3 +28,5 @@ Set `ROOSTER_VERBOSE=1` to see extra constraint logging.
 ## Data
 
 Place input CSVs under `data/`. The UI also persists uploaded files as `data/uploaded_*.csv`.
+
+Shifts per date/location are taken from `config/locations.json` (teams_per_date preferred, falling back to teams_per_day weekday defaults). Use the Generator tab to edit and save these values.

@@ -11,7 +11,9 @@ def _assigned(solver, var) -> int:
     return int(solver.Value(var) == 1)
 
 
-def compute_shift_counts(assignment_vars, solver, num_people: int, num_shifts: int) -> List[int]:
+def compute_shift_counts(
+    assignment_vars, solver, num_people: int, num_shifts: int
+) -> List[int]:
     counts = [
         sum(_assigned(solver, assignment_vars[(t, s)]) for s in range(num_shifts))
         for t in range(num_people)
@@ -94,7 +96,9 @@ def compute_monthly_min_avail_rows(
         for m, s_indices in month_to_shifts.items():
             if m not in months_available:
                 continue
-            assigned = sum(_assigned(solver, assignment_vars[(t_idx, s)]) for s in s_indices)
+            assigned = sum(
+                _assigned(solver, assignment_vars[(t_idx, s)]) for s in s_indices
+            )
             if assigned == 0:
                 rows.append(
                     {
@@ -126,7 +130,9 @@ def compute_monthly_excess_rows(
     for t_idx, tester in enumerate(person_list):
         cap = int(tester.get("month_max", 0))
         for m, s_indices in month_to_shifts.items():
-            assigned = sum(_assigned(solver, assignment_vars[(t_idx, s)]) for s in s_indices)
+            assigned = sum(
+                _assigned(solver, assignment_vars[(t_idx, s)]) for s in s_indices
+            )
             excess = max(0, assigned - cap)
             if excess > 0:
                 rows.append(
@@ -150,7 +156,9 @@ def compute_fairness_rows(
     shift_list: List[Dict[str, Any]],
     weight: int,
 ) -> List[Dict[str, Any]]:
-    counts = compute_shift_counts(assignment_vars, solver, len(person_list), len(shift_list))
+    counts = compute_shift_counts(
+        assignment_vars, solver, len(person_list), len(shift_list)
+    )
     span = (max(counts) if counts else 0) - (min(counts) if counts else 0)
     return [
         {
@@ -175,6 +183,7 @@ def compute_weekly_multi_rows(
     weighted = units * weight
     """
     from datetime import datetime as _dt
+
     # Build week mapping
     week_to_shifts: Dict[Tuple[int, int], List[int]] = {}
     for s_idx, shift in enumerate(shift_list):
@@ -185,7 +194,9 @@ def compute_weekly_multi_rows(
     rows: List[Dict[str, Any]] = []
     for t_idx, tester in enumerate(person_list):
         for (y, w), s_indices in week_to_shifts.items():
-            assigned = sum(_assigned(solver, assignment_vars[(t_idx, s)]) for s in s_indices)
+            assigned = sum(
+                _assigned(solver, assignment_vars[(t_idx, s)]) for s in s_indices
+            )
             units = max(0, assigned - 1)
             if units > 0:
                 rows.append(
@@ -236,7 +247,11 @@ def export_penalties(
 
     # Monthly minimum availability penalty rows
     min_av_rows = compute_monthly_min_avail_rows(
-        assignment_vars, solver, person_list, shift_list, weights.get("monthly_min_avail", 1)
+        assignment_vars,
+        solver,
+        person_list,
+        shift_list,
+        weights.get("monthly_min_avail", 1),
     )
     all_rows.extend(min_av_rows)
 
@@ -296,7 +311,9 @@ def compute_monthly_avg_rows(
     for t_idx, tester in enumerate(person_list):
         per_month = int(tester.get("month_avg", 0))
         target_total = per_month * n_months
-        assigned_total = sum(_assigned(solver, assignment_vars[(t_idx, s)]) for s in range(total_shifts))
+        assigned_total = sum(
+            _assigned(solver, assignment_vars[(t_idx, s)]) for s in range(total_shifts)
+        )
         deficit = max(0, target_total - assigned_total)
         # Quadratic cost: weight * deficit^2
         weighted = weight * (deficit * deficit)

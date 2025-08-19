@@ -1,7 +1,9 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 import csv
-from typing import Dict, Optional
+from typing import Dict
 from config import get_locations_config
+
+
 class Filled_Shift:
     def __init__(self, location, day, date, weeknummer, team, testers):
         self.location = location
@@ -23,17 +25,15 @@ class Filled_Shift:
             "team": self.team,
             "testers": self.testers,
         }
-    
 
-    
-shift_list = []
 
 # Load dynamic locations config
 _LOC_CONF = get_locations_config()
 _LOCATIONS = [loc["name"] for loc in _LOC_CONF.get("locations", [])]
-_LOC_TEAMS_PER_DAY = {loc["name"]: loc.get("teams_per_day", {}) for loc in _LOC_CONF.get("locations", [])}
 # New: optional per-date team counts configured per location
-_LOC_TEAMS_PER_DATE = {loc["name"]: loc.get("teams_per_date", {}) for loc in _LOC_CONF.get("locations", [])}
+_LOC_TEAMS_PER_DATE = {
+    loc["name"]: loc.get("teams_per_date", {}) for loc in _LOC_CONF.get("locations", [])
+}
 
 # Build a consolidated {date: {location: count}} plan from teams_per_date
 _PLAN_FROM_CONF: Dict[str, Dict[str, int]] = {}
@@ -46,11 +46,6 @@ for loc_name, date_map in _LOC_TEAMS_PER_DATE.items():
             continue
         _PLAN_FROM_CONF.setdefault(date_str, {})[loc_name] = int(count or 0)
 
-# Geef hier de gewenste weekdagen op en de start/einddatum
-weekdagen = ["di", "do"]
-startdatum = "2023-10-01"
-einddatum = "2023-12-31"
-
 # Map weekday numbers naar Nederlandse dagen
 dag_namen = {0: "ma", 1: "di", 2: "wo", 3: "do", 4: "vr", 5: "za", 6: "zo"}
 
@@ -61,21 +56,6 @@ for loc in _LOC_CONF.get("locations", []):
     name = loc.get("name")
     for day, count in loc.get("teams_per_day", {}).items():
         dag_teams.setdefault(day, {})[name] = int(count)
-
-
-# Genereer alle datums tussen start en eind die op weekdagen vallen
-def get_dates_by_daynames(start, end, weekdagen):
-    start_dt = datetime.strptime(start, "%Y-%m-%d")
-    end_dt = datetime.strptime(end, "%Y-%m-%d")
-    result = {dag: [] for dag in weekdagen}
-
-    current = start_dt
-    while current <= end_dt:
-        dag = dag_namen[current.weekday()]
-        if dag in weekdagen:
-            result[dag].append(current.strftime("%Y-%m-%d"))
-        current += timedelta(days=1)
-    return result
 
 
 # Genereer shifts
@@ -90,36 +70,14 @@ def create_shift_dict(location, day, date, team):
     }
 
 
-
-
-
-def csv_to_shiftlist(csv_path: str, plan: Optional[Dict[str, Dict[str, int]]] = None) -> list[dict[str, int | str]]:
+def csv_to_shiftlist(csv_path: str) -> list[dict[str, int | str]]:
     """
-    Build a list of shifts from either:
-    - a provided plan: { 'YYYY-MM-DD': {'Utrecht': int, 'Amersfoort': int}, ... }
-    - or by inferring dates from the uploaded CSV headers and using dag_teams defaults.
+    Build a list of shifts using config/locations.json:
+    - Prefer explicit teams_per_date per location
+    - Else, infer dates from the uploaded CSV headers and use weekday defaults from teams_per_day
     """
     shift_list: list[dict[str, int | str]] = []
-
-    # 1) If an explicit plan is provided (e.g., via --shift-plan), use that
-    if plan:
-        # Use explicit plan; date keys drive the generation
-        for date in sorted(plan.keys()):
-            # Validate/normalize date
-            try:
-                dt = datetime.strptime(date, "%Y-%m-%d")
-            except ValueError:
-                # Ignore invalid dates
-                continue
-            weekday = get_weekday_from_date(dt)
-            counts = plan.get(date, {})
-            for loc in _LOCATIONS:
-                n = int(counts.get(loc, 0) or 0)
-                for i in range(max(0, n)):
-                    shift_list.append(create_shift_dict(loc, weekday, date, i))
-        return shift_list
-
-    # 2) If no explicit plan, but teams_per_date exists in locations config, use that
+    # If teams_per_date exists in locations config, use that
     if _PLAN_FROM_CONF:
         for date in sorted(_PLAN_FROM_CONF.keys()):
             try:
@@ -147,13 +105,14 @@ def csv_to_shiftlist(csv_path: str, plan: Optional[Dict[str, Dict[str, int]]] = 
         for date in date_cells:
             try:
                 date_columns.append(
-                    datetime.strptime(date.strip(), "%d-%m").replace(year=2025).strftime("%Y-%m-%d")
+                    datetime.strptime(date.strip(), "%d-%m")
+                    .replace(year=2025)
+                    .strftime("%Y-%m-%d")
                 )
             except Exception:
                 # Skip non-date tokens
                 continue
 
-        print(f"Date columns found: {date_columns} ")
         for date in date_columns:
             weekday: str = get_weekday_from_date(datetime.strptime(date, "%Y-%m-%d"))
             # Use configured counts per location for that weekday
@@ -164,24 +123,6 @@ def csv_to_shiftlist(csv_path: str, plan: Optional[Dict[str, Dict[str, int]]] = 
 
     return shift_list
 
+
 def get_weekday_from_date(date_obj):
     return dag_namen[date_obj.weekday()]
-
-
-def create_shift_list_from_daterange():
-    dates_by_day = get_dates_by_daynames(startdatum, einddatum, weekdagen)
-    for location in _LOCATIONS:
-        per_day = _LOC_TEAMS_PER_DAY.get(location, {})
-        for day, count in per_day.items():
-            for date in dates_by_day.get(day, []):
-                for team in range(int(count)):
-                    shift_list.append(create_shift_dict(location, day, date, team))
-
-
-# import_shifts_from_preferences("Test_Data_sanitized_oktober.csv")
-# create_shift_list_from_daterange()
-
-if __name__ == "__main__":
-    # Testprint
-    for shift in shift_list:
-        print(shift)

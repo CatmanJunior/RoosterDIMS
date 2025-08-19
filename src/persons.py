@@ -1,6 +1,7 @@
 import csv
 from datetime import datetime
 import re
+from config import get_locations_config
 
 
 def is_date_field(keyname):
@@ -49,18 +50,18 @@ def csv_to_personlist(csv_path):
             # Backward compatibility: optional single preferred location string
             pref_loc = _safe_str(row.get("Pref_Loc"), "").strip()
 
-            # New flags: Pref_Loc_0 (Utrecht), Pref_Loc_1 (Amersfoort)
-            def _parse_flag(val, default=2):
-                return _safe_int(val, default)
-
-            pref_loc_0 = _parse_flag(row.get("Pref_Loc_0", 2))  # 0=forbidden, 1=penalize, 2=no penalty
-            pref_loc_1 = _parse_flag(row.get("Pref_Loc_1", 2))
-            pref_loc_2 = _parse_flag(row.get("Pref_Loc_2", 2))
-            pref_loc_flags = {
-                "Utrecht": pref_loc_0,
-                "Amersfoort": pref_loc_1,
-                "Uitslagen": pref_loc_2,
-            }
+            # Dynamically extract all Pref_Loc_<digit> columns
+            loc_conf = get_locations_config()
+            locations = [loc.get("name") for loc in loc_conf.get("locations", [])]
+            pref_loc_flags = {}
+            for idx, loc_name in enumerate(locations):
+                col_key = f"Pref_Loc_{idx}"
+                val = row.get(col_key, None)
+                # If not present, fallback to 2 (no penalty)
+                try:
+                    pref_loc_flags[loc_name] = int(val) if val is not None and str(val).strip() != "" else 2
+                except Exception:
+                    pref_loc_flags[loc_name] = 2
 
             beschikbaar = {}
             month_max = _safe_int(row.get("Month_max"), 0)

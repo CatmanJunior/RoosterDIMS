@@ -41,20 +41,20 @@ def print_shift_schedule(assignment_vars, solver, shift_list, person_list):
             namen = ", ".join(ingedeelden)
             print(f"  📍 {locatie} - {team}: {namen}")
 
+
 # Print het aantal shifts per persoon
 def print_shift_count_per_person(assignment_vars, solver, shift_list, person_list):
     print("\n👥 -Aantal shifts per persoon:")
     for tester in person_list:
-        print(
-            f"👤 {tester['name']} ({tester['role']}) - Voorkeur: {tester['pref_location']} - Aantal shifts: "
-        )
-        aantal_shifts = sum(
-            solver.Value(assignment_vars[(t_idx, s_idx)]) == 1
-            for s_idx in range(len(shift_list))
-            for t_idx in range(len(person_list))
-            if person_list[t_idx]["name"] == tester["name"]
-        )
+        print(f"👤 {tester['name']} ({tester['role']}) - Aantal shifts:")
+        aantal_shifts = 0
+        for s_idx in range(len(shift_list)):
+            for t_idx in range(len(person_list)):
+                if person_list[t_idx]["name"] == tester["name"]:
+                    if solver.Value(assignment_vars[(t_idx, s_idx)]) == 1:
+                        aantal_shifts += 1
         print(f"    {aantal_shifts} shifts")
+
 
 def print_filled_shifts(filled_shifts):
     print("🗓️ -Rooster:")

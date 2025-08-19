@@ -1,13 +1,12 @@
-from datetime import datetime
 import os
 from typing import Dict
 from config import get_locations_config
+
 
 def _log(msg: str) -> None:
     """Print only when ROOSTER_VERBOSE env var is truthy."""
     if os.environ.get("ROOSTER_VERBOSE") not in (None, "", "0", "false", "False"):
         print(msg)
-
 
 
 # Constraint 1: Niet plannen als iemand niet beschikbaar is
@@ -63,7 +62,8 @@ def add_exactly_x_testers_per_shift_constraints(
     # Build a map {location_name: peers_flag}
     loc_conf = get_locations_config()
     loc_peers: Dict[str, int] = {
-        loc.get("name"): int(loc.get("peers", 1)) for loc in loc_conf.get("locations", [])
+        loc.get("name"): int(loc.get("peers", 1))
+        for loc in loc_conf.get("locations", [])
     }
 
     for s_idx, shift in enumerate(shift_list):
@@ -92,7 +92,7 @@ def add_minimum_first_tester_per_shift_constraints(
         _log(f"Adding constraint for at least 1 first tester on shift {s_idx}")
 
 
-# Constraint 6: Maximaal x shifts per week per persoon
+# Constraint: Maximaal x shifts per week per persoon
 def add_max_x_shifts_per_week_constraints(
     model, assignment_vars, person_list, shift_list, max_shifts_per_week=1
 ):
@@ -110,38 +110,13 @@ def add_max_x_shifts_per_week_constraints(
             )
 
 
-# constraint 8: Maximaal x shifts per maand per persoon gebasseerd op voorkeuren.#
-# Gebasseerd op de "Hoevaak PM Max" van de person_list
-def calculate_max_x_shifts_per_month_penalty(
-    assignment_vars, person_list, shift_list, max_shifts_per_month=1, penalty_weight=100
-):
-
-    monthnums = set(
-        datetime.strptime(shift["date"], "%Y-%m-%d").month for shift in shift_list
-    )
-    penalty = 0
-    for num in monthnums:
-        for t_idx, tester in enumerate(person_list):
-            shifts_this_month = [
-                s_idx
-                for s_idx, shift in enumerate(shift_list)
-                if datetime.strptime(shift["date"], "%Y-%m-%d").month == num
-            ]
-            max_shifts = tester.get("month_max", max_shifts_per_month)
-            total_shifts = sum(assignment_vars[t_idx, s_idx] for s_idx in shifts_this_month)
-            excess = max(0, total_shifts - max_shifts)
-            penalty += excess * penalty_weight
-    return penalty
-
-
-# Constraint 7: Maximaal 1 eerste tester per shift, tenzij er geen peers beschikbaar zijn
+# Constraint: Maximaal 1 eerste tester per shift, tenzij er geen peers beschikbaar zijn
 def add_single_first_tester_constraints(
     model, assignment_vars, shift_list, person_list
 ):
     """
     Dit zorgt ervoor dat er maximaal 1 eerste tester per shift is, tenzij er geen peers beschikbaar zijn.
     In dat geval is er geen beperking op het aantal eerste testers.
-    TODO: Check of dit niet tot conflicten leidt door de max per maand regel
     """
     # Roles in person_list use 'T' (tester/eerste) and 'P' (peer)
     eerste_idx = [i for i, p in enumerate(person_list) if p["role"] == "T"]
