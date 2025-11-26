@@ -106,7 +106,7 @@ def csv_to_shiftlist(csv_path: str) -> list[dict[str, int | str]]:
             try:
                 date_columns.append(
                     datetime.strptime(date.strip(), "%d-%m")
-                    .replace(year=2025)
+                    .replace(year=2026)
                     .strftime("%Y-%m-%d")
                 )
             except Exception:

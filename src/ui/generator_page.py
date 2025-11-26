@@ -13,6 +13,47 @@ from shift_list import dag_teams, get_weekday_from_date
 from config import get_locations_config, get_data_sources_config, get_weights_config
 
 
+def validate_csv_columns(csv_path: Path) -> tuple[bool, list[str], list[str]]:
+    """
+    Validate that the CSV has required columns.
+    Returns: (is_valid, missing_columns, warnings)
+    """
+    required_columns = ["Name", "Tester", "Month_max", "Month_avg"]
+    
+    try:
+        # Read just the header to check columns
+        df = pd.read_csv(csv_path, sep=None, engine="python", nrows=0)
+        columns = df.columns.tolist()
+        
+        # Normalize column names (case-insensitive check)
+        columns_lower = [col.lower() for col in columns]
+        
+        missing = []
+        warnings = []
+        
+        # Check required columns
+        for req_col in required_columns:
+            if req_col.lower() not in columns_lower and req_col not in columns:
+                missing.append(req_col)
+        
+        # Check if there are any date columns (format: d-m or dd-mm)
+        import re
+        has_date_columns = any(re.match(r"^(?:0?[1-9]|[12][0-9]|3[01])-(?:0?[1-9]|1[0-2])$", str(col)) for col in columns)
+        if not has_date_columns:
+            warnings.append("Geen datum kolommen gevonden (verwacht formaat: d-m of dd-mm)")
+        
+        # Check optional preference location columns
+        has_pref_loc = any("Pref_Loc" in str(col) for col in columns)
+        if not has_pref_loc:
+            warnings.append("Geen locatie voorkeuren kolommen gevonden (Pref_Loc_0, Pref_Loc_1, etc.)")
+        
+        is_valid = len(missing) == 0
+        return is_valid, missing, warnings
+        
+    except Exception as e:
+        return False, [], [f"Fout bij valideren van CSV: {str(e)}"]
+
+
 def _find_windows_python_in_venv(root: Path) -> Optional[Path]:
     """Find python.exe in current venv or common local venv folders on Windows."""
     venv_env = os.environ.get("VIRTUAL_ENV")
@@ -38,8 +79,21 @@ def render_generator_page() -> None:
     plan_dir = root / "data"
     plan_dir.mkdir(exist_ok=True)
 
+    # Year selector
+    st.markdown("### 📅 Selecteer jaar voor rooster")
+    current_year = _dt.now().year
+    selected_year = st.selectbox(
+        "Jaar",
+        options=[current_year - 1, current_year, current_year + 1, current_year + 2],
+        index=2,  # Default to next year (2026 if current is 2025)
+        key="roster_year",
+        help="Het jaar waarvoor de datums in het CSV-bestand gelden"
+    )
+    st.info(f"📌 Geselecteerd jaar: **{selected_year}** - Datums in CSV (d-m formaat) worden geïnterpreteerd als {selected_year}")
+    st.markdown("---")
+
     # UI: upload or pick previous
-    st.markdown("1) Upload een CSV met personeelsvoorkeuren en beschikbaarheid of kies een eerder bestand.")
+    st.markdown("### 1) Upload CSV met personeelsvoorkeuren")
     uploaded = st.file_uploader("Kies CSV", type=["csv", "txt"])
     prev_choice = None
     try:
@@ -67,9 +121,21 @@ def render_generator_page() -> None:
     persons = []
     preview_ok = False
     if selected_any and csv_path is not None:
+        # Validate CSV columns
+        is_valid, missing_cols, warnings = validate_csv_columns(csv_path)
+        
+        if not is_valid:
+            st.error(f"❌ CSV validatie gefaald! Ontbrekende verplichte kolommen: {', '.join(missing_cols)}")
+            st.info("Verplichte kolommen: Name, Tester, Month_max, Month_avg")
+            st.info("Datum kolommen in formaat: d-m of dd-mm (bijv. 1-10, 15-11)")
+        else:
+            if warnings:
+                for warning in warnings:
+                    st.warning(f"⚠️ {warning}")
+        
         # Parse persons
         try:
-            persons = csv_to_personlist(str(csv_path))
+            persons = csv_to_personlist(str(csv_path), year=selected_year)
         except Exception as e:
             st.error(f"Kon CSV niet parsen: {e}")
 

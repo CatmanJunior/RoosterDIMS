@@ -76,6 +76,13 @@ parser.add_argument(
     action="store_true",
     help="Print extra diagnostic information",
 )
+parser.add_argument(
+    "--year",
+    dest="year",
+    type=int,
+    default=2026,
+    help="Year for the roster (default: 2026)",
+)
 args, _ = parser.parse_known_args(sys.argv[1:])
 
 WEIGHTS = (
@@ -105,7 +112,7 @@ csv_file = args.csv_file
 
 # Build shifts using locations.json configuration (teams_per_date preferred)
 shift_list = csv_to_shiftlist(csv_file)
-person_list = csv_to_personlist(csv_file)
+person_list = csv_to_personlist(csv_file, year=args.year)
 
 
 def create_assignment_vars():
@@ -149,6 +156,40 @@ def add_constraints(model, assignment_vars):
         add_single_first_tester_constraints(
             model, assignment_vars, shift_list, person_list
         )
+
+        # Mutual exclusions: prevent two specific people being scheduled on the same day
+        try:
+            import json
+            excl_path = Path("data") / "mutual_exclusions.json"
+            if excl_path.exists():
+                exclusions = json.loads(excl_path.read_text(encoding="utf-8"))
+                if exclusions:
+                    # Build a mapping person name -> index
+                    name_to_idx = {p["name"]: i for i, p in enumerate(person_list)}
+                    # Build date -> shift indices map
+                    date_to_shifts = {}
+                    for s_idx, shift in enumerate(shift_list):
+                        date_to_shifts.setdefault(shift["date"], []).append(s_idx)
+
+                    for pair in exclusions:
+                        if not pair or len(pair) < 2:
+                            continue
+                        a, b = pair[0], pair[1]
+                        if a not in name_to_idx or b not in name_to_idx:
+                            # skip unknown names
+                            continue
+                        a_idx = name_to_idx[a]
+                        b_idx = name_to_idx[b]
+                        # For each date, sum assignments for both persons on that date <= 1
+                        for date, shift_idxs in date_to_shifts.items():
+                            vars_a = [assignment_vars[(a_idx, s)] for s in shift_idxs if (a_idx, s) in assignment_vars]
+                            vars_b = [assignment_vars[(b_idx, s)] for s in shift_idxs if (b_idx, s) in assignment_vars]
+                            if not vars_a and not vars_b:
+                                continue
+                            model.Add(sum(vars_a + vars_b) <= 1)
+        except Exception:
+            # Don't fail the whole model setup if exclusions can't be read
+            pass
 
     # Delegate all objective building to penalty_terms module
     apply_objective(

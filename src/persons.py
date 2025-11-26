@@ -9,7 +9,7 @@ def is_date_field(keyname):
     return bool(re.match(r"^(?:0?[1-9]|[12][0-9]|3[01])-(?:0?[1-9]|1[0-2])$", keyname))
 
 
-def csv_to_personlist(csv_path):
+def csv_to_personlist(csv_path, year=2026):
     person_list = []
     # Auto-detect delimiter (comma, semicolon, or tab) and strip BOM if present
     with open(csv_path, "r", newline="", encoding="utf-8-sig") as csvfile:
@@ -71,7 +71,7 @@ def csv_to_personlist(csv_path):
                 if is_date_field(str(key)):
                     try:
                         date_obj = datetime.strptime(str(key).strip(), "%d-%m")
-                        date_str = f"2025-{date_obj.month:02d}-{date_obj.day:02d}"
+                        date_str = f"{year}-{date_obj.month:02d}-{date_obj.day:02d}"
                     except ValueError:
                         date_str = str(key).strip()
                     beschikbaar[date_str] = _to_bool(row.get(key))
