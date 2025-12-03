@@ -4,6 +4,27 @@ import streamlit as st
 from config import get_data_sources_config
 
 
+def _read_diagnostics() -> pd.DataFrame:
+    """Read optional diagnostics about unplannable days from CSV.
+
+    The CLI can write a small diagnostics file when no solution is found;
+    if present, we show it here to explain why dagen niet planbaar zijn.
+    """
+    ds_conf = get_data_sources_config()
+    diag_path = ds_conf.get("diagnostics_csv", None)
+    if not diag_path:
+        # Default next to rooster.csv
+        roster_path = ds_conf.get("rooster_csv", "rooster.csv")
+        import os
+
+        root, base = os.path.split(roster_path)
+        diag_path = os.path.join(root, "rooster_diagnostics.csv")
+    try:
+        return pd.read_csv(diag_path)
+    except FileNotFoundError:
+        return pd.DataFrame()
+
+
 def render_rooster_page() -> None:
     st.title("📋 Roosteroverzicht")
 
@@ -13,6 +34,11 @@ def render_rooster_page() -> None:
         df = pd.read_csv(roster_path)
     except FileNotFoundError:
         st.info("Geen rooster gevonden. Genereer eerst een rooster via de Generator.")
+        # Probeer uitleg te geven waarom plannen niet gelukt is
+        diag_df = _read_diagnostics()
+        if not diag_df.empty:
+            st.subheader("❗ Niet-planbare dagen/locaties")
+            st.dataframe(diag_df, use_container_width=True)
         return
 
     # Parse 'testers' kolom naar een lijst voor aggregaties/overzichten

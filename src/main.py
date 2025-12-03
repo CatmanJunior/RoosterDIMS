@@ -2,6 +2,7 @@ from ortools.sat.python import cp_model
 import argparse
 import sys
 from export import export_to_csv
+import csv as _csv
 from pathlib import Path
 from config import get_data_sources_config, get_weights_config
 from persons import csv_to_personlist
@@ -105,6 +106,9 @@ MASKED_WEIGHTS = {
     "monthly_min_avail": WEIGHTS.get("monthly_min_avail", 0)
     if "monthly_min_avail" in _SEL_OBJECTIVES
     else 0,
+    "location_fairness": WEIGHTS.get("location_fairness", 0)
+    if "location_fairness" in _SEL_OBJECTIVES
+    else 0,
 }
 
 model = cp_model.CpModel()
@@ -201,15 +205,170 @@ def add_constraints(model, assignment_vars):
     )
 
 
-# All penalty/objective logic is now in penalty_terms.py
-
-
 def run_model():
     solver = cp_model.CpSolver()
     # solver.parameters.log_search_progress = True
 
     status = solver.Solve(model)
     return solver, status
+
+
+def diagnose_unplanned_days(solver, status, assignment_vars):
+    """Return a summary of days that cannot be fully planned and simple reasons.
+
+    This is intentionally lightweight: when the model is infeasible or no
+    solution is found, we inspect per-date coverage vs. requested teams and
+    the number of available people.
+    """
+    from collections import defaultdict
+
+    diagnostics = {
+        "status": int(status),
+        "problem": None,
+        # list of rows with date/location and constraint flags
+        "days": [],
+    }
+
+    if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        diagnostics["problem"] = "Geen oplossing gevonden door de solver."
+    # Build helper indexes
+    date_loc_required = defaultdict(lambda: defaultdict(int))
+    for sh in shift_list:
+        date_loc_required[sh["date"]][sh["location"]] += 1
+
+    # Available testers per (date, location), split by role (first tester vs peer)
+    date_loc_available_T = defaultdict(lambda: defaultdict(int))  # role 'T'
+    date_loc_available_P = defaultdict(lambda: defaultdict(int))  # role 'P'
+    for p in person_list:
+        role = p.get("role")
+        availability = p.get("availability", {})
+        pref_locs = p.get("pref_loc_flags", {})
+        for date, is_avail in availability.items():
+            if not is_avail:
+                continue
+            # Count available per location where preference flag > 0
+            if pref_locs:
+                for loc, flag in pref_locs.items():
+                    if flag:
+                        if role == "T":
+                            date_loc_available_T[date][loc] += 1
+                        elif role == "P":
+                            date_loc_available_P[date][loc] += 1
+            else:
+                # If no per-location prefs, consider the tester available for all locations
+                for loc in date_loc_required.get(date, {}).keys():
+                    if role == "T":
+                        date_loc_available_T[date][loc] += 1
+                    elif role == "P":
+                        date_loc_available_P[date][loc] += 1
+
+    # Constraint-based helper summaries per day/location
+    # 1) availability / hard location bans
+    date_loc_blocked = defaultdict(lambda: defaultdict(int))
+    for t_idx, tester in enumerate(person_list):
+        flags = tester.get("pref_loc_flags", {})
+        availability = tester.get("availability", {})
+        for s_idx, shift in enumerate(shift_list):
+            d = shift["date"]
+            loc = shift["location"]
+            if not availability.get(d, True):
+                # Not available at all that day for that date
+                date_loc_blocked[d][loc] += 1
+            else:
+                # Hard location ban (Pref_Loc flag == 0)
+                loc_flag = flags.get(loc)
+                if loc_flag == 0:
+                    date_loc_blocked[d][loc] += 1
+
+    # If we have a solution, also look at how many testers were actually assigned
+    date_loc_assigned = defaultdict(lambda: defaultdict(int))
+    if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        for (t_idx, s_idx), var in assignment_vars.items():
+            if solver.Value(var):
+                sh = shift_list[s_idx]
+                date_loc_assigned[sh["date"]][sh["location"]] += 1
+
+    # Pre-compute weekly caps to explain max_per_week
+    tester_weeks = defaultdict(lambda: defaultdict(int))  # tester -> week -> shifts
+    for (t_idx, s_idx), var in assignment_vars.items():
+        shift = shift_list[s_idx]
+        tester_weeks[t_idx][shift["weeknummer"]] += 1
+
+    # Build per-day diagnostics
+    for date, locs in sorted(date_loc_required.items()):
+        for loc, required in locs.items():
+            assigned = date_loc_assigned[date][loc]
+            # total available = first testers + peers
+            available_T = date_loc_available_T[date][loc]
+            available_P = date_loc_available_P[date][loc]
+            available = available_T + available_P
+            if required == 0:
+                continue
+            if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE) or assigned < required:
+                # Flags for likely problematic constraints
+                reason_parts = []
+                c_availability = False
+                c_max_per_day = False
+                c_max_per_week = False
+                c_single_first = False
+                c_exclusions = False
+
+                if available == 0:
+                    reason_parts.append("Geen testers beschikbaar voor deze locatie op deze dag.")
+                    c_availability = True
+                elif available * 2 < required:  # 2 testers per shift
+                    reason_parts.append("Te weinig beschikbare testers t.o.v. aantal teams.")
+                    c_availability = True
+
+                # Heuristics for other constraints
+                # Max per day: if there are testers who are available on this date for this location
+                # but they already have a shift on this date somewhere else
+                # we can't easily see that without solving, so flag as "maybe" when partial coverage
+                if assigned < required and available > 0:
+                    c_max_per_day = True
+
+                # Max per week: if date is in a week where many testers already have multiple shifts
+                # (approximate)
+                week = None
+                for sh in shift_list:
+                    if sh["date"] == date and sh["location"] == loc:
+                        week = sh["weeknummer"]
+                        break
+                if week is not None:
+                    # If many testers are at or above 2 shifts in this week, flag
+                    capped = sum(1 for t_idx in range(len(person_list)) if tester_weeks[t_idx][week] >= 2)
+                    if capped and assigned < required:
+                        c_max_per_week = True
+
+                # Single_first & exclusions are harder to detect directly, but we can flag when others are not
+                if not c_availability and assigned < required:
+                    c_single_first = True
+                    c_exclusions = True
+
+                if not reason_parts:
+                    reason_parts.append(
+                        "Mogelijk conflict tussen constraints (max per dag/week, single first, uitsluitingen)."
+                    )
+
+                diagnostics["days"].append(
+                    {
+                        "date": date,
+                        "location": loc,
+                        "required": int(required),
+                        "assigned": int(assigned),
+                        "available": int(available),
+                        "available_T": int(available_T),
+                        "available_P": int(available_P),
+                        "reason": " ".join(reason_parts),
+                        "c_availability": c_availability,
+                        "c_max_per_day": c_max_per_day,
+                        "c_max_per_week": c_max_per_week,
+                        "c_single_first": c_single_first,
+                        "c_exclusions": c_exclusions,
+                    }
+                )
+
+    return diagnostics
 
 
 if __name__ == "__main__":
@@ -272,3 +431,48 @@ if __name__ == "__main__":
         )
     else:
         print("Geen oplossing gevonden.")
+        # Toon ook welke dagen/locaties niet planbaar lijken en waarom
+        diags = diagnose_unplanned_days(solver, status, assignment_vars)
+        if diags.get("days"):
+            print("Problemen per dag/locatie:")
+            for row in diags["days"]:
+                print(
+                    f"- {row['date']} @ {row['location']}: vereist={row['required']}, "
+                    f"gepland={row['assigned']}, beschikbaar={row['available']} -> {row['reason']}"
+                )
+
+            # Schrijf ook een diagnostics CSV zodat de UI deze kan tonen
+            ds_conf = get_data_sources_config()
+            diag_path = ds_conf.get("diagnostics_csv")
+            if not diag_path:
+                roster_path = ds_conf.get("roster_csv", "rooster.csv")
+                import os as _os
+
+                root, base = _os.path.split(roster_path)
+                diag_path = _os.path.join(root, "rooster_diagnostics.csv")
+            try:
+                with open(diag_path, "w", newline="", encoding="utf-8") as f:
+                    writer = _csv.DictWriter(
+                        f,
+                        fieldnames=[
+                            "date",
+                            "location",
+                            "required",
+                            "assigned",
+                            "available",
+                            "available_T",
+                            "available_P",
+                            "reason",
+                            "c_availability",
+                            "c_max_per_day",
+                            "c_max_per_week",
+                            "c_single_first",
+                            "c_exclusions",
+                        ],
+                    )
+                    writer.writeheader()
+                    for row in diags["days"]:
+                        writer.writerow(row)
+                print(f"Diagnostiek geschreven naar {diag_path}")
+            except Exception as e:
+                print(f"Kon diagnostics CSV niet schrijven: {e}")

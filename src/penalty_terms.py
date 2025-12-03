@@ -157,6 +157,60 @@ def build_location_penalties(
     return penalties
 
 
+def build_location_penalty_span_vars(
+    model: cp_model.CpModel,
+    assignment_vars,
+    person_list: List[Dict[str, Any]],
+    shift_list: List[Dict[str, Any]],
+):
+    """
+    Build max/min variables for per-tester location-penalty counts.
+
+    Encourages spreading 'bad location' assignments over testers instead of
+    loading them onto a few people.
+    Returns (max_loc_pen, min_loc_pen)
+    """
+    n_shifts = len(shift_list)
+
+    loc_penalty_counts = []
+    for t_idx, tester in enumerate(person_list):
+        terms = []
+        flags_map = tester.get("pref_loc_flags", {}) or {}
+        pref_fallback = tester.get("pref_location")
+        for s_idx, shift in enumerate(shift_list):
+            loc = shift["location"]
+            flag = flags_map.get(loc) if flags_map else None
+
+            bad_here = False
+            if flag is None:
+                if pref_fallback and loc != pref_fallback:
+                    bad_here = True
+            else:
+                if flag == 1:
+                    bad_here = True
+
+            if bad_here:
+                terms.append(assignment_vars[(t_idx, s_idx)])
+
+        if terms:
+            cnt = model.NewIntVar(0, len(terms), f"loc_penalty_count_p{t_idx}")
+            model.Add(cnt == sum(terms))
+        else:
+            cnt = model.NewIntVar(0, 0, f"loc_penalty_count_p{t_idx}_zero")
+            model.Add(cnt == 0)
+        loc_penalty_counts.append(cnt)
+
+    if not loc_penalty_counts:
+        zero = model.NewIntVar(0, 0, "loc_penalty_span_zero")
+        return zero, zero
+
+    max_loc = model.NewIntVar(0, n_shifts, "max_loc_penalties")
+    min_loc = model.NewIntVar(0, n_shifts, "min_loc_penalties")
+    model.AddMaxEquality(max_loc, loc_penalty_counts)
+    model.AddMinEquality(min_loc, loc_penalty_counts)
+    return max_loc, min_loc
+
+
 def build_fairness_span_vars(
     model: cp_model.CpModel,
     assignment_vars,
@@ -187,10 +241,15 @@ def apply_objective(
     weekly_multi = build_weekly_multi_excess_vars(model, assignment_vars, person_list, shift_list)
     min_av_missing = build_monthly_min_avail_missing_vars(model, assignment_vars, person_list, shift_list)
     max_shifts, min_shifts = build_fairness_span_vars(model, assignment_vars, person_list, shift_list)
+    # Location-penalty fairness: try to spread bad-location assignments across testers
+    max_loc_pen, min_loc_pen = build_location_penalty_span_vars(model, assignment_vars, person_list, shift_list)
 
+    # location_fairness allows tuning how strongly we prefer spreading location penalties
+    loc_fairness_w = weights.get("location_fairness", weights.get("fairness", 0))
     expr = (
         sum(loc_penalties) * weights.get("location", 0)
         + (max_shifts - min_shifts) * weights.get("fairness", 0)
+        + (max_loc_pen - min_loc_pen) * loc_fairness_w
         + sum(monthly_excess) * weights.get("monthly", 0)
         + sum(avg_costs)  # already scaled by monthly_avg weight
         + sum(weekly_multi) * weights.get("weekly_multi", 0)
