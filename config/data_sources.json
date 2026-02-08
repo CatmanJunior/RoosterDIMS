@@ -5,5 +5,5 @@
   "roster_csv": "data/generated/rooster.csv",
   "penalties_csv": "data/generated/penalties.csv",
   "penalties_summary_csv": "data/generated/penalties_summary.csv",
-  "enable_auth": true
+  "enable_auth": false
 }
