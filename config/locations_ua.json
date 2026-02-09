@@ -1,0 +1,19 @@
+{
+  "locations": [
+    {
+      "name": "Lab",
+      "peers": 1,
+      "FTIR": 1,
+      "teams_per_date": {},
+      "teams_per_day": {
+        "ma": 1,
+        "di": 1,
+        "wo": 1,
+        "do": 1,
+        "vr": 1,
+        "za": 0,
+        "zo": 0
+      }
+    }
+  ]
+}

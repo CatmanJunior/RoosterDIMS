@@ -1,0 +1,136 @@
+{
+  "year": 2026,
+  "quarter": "Q2",
+  "teams_per_date": {
+    "2026-04-01": {
+      "Amsterdam": 1
+    },
+    "2026-04-02": {
+      "Amsterdam": 1,
+      "Hilversum": 1
+    },
+    "2026-04-03": {
+      "Amsterdam": 1
+    },
+    "2026-04-08": {
+      "Amsterdam": 1
+    },
+    "2026-04-09": {
+      "Amsterdam": 1,
+      "Hilversum": 1
+    },
+    "2026-04-10": {
+      "Amsterdam": 1
+    },
+    "2026-04-15": {
+      "Amsterdam": 1
+    },
+    "2026-04-16": {
+      "Amsterdam": 1,
+      "Hilversum": 1
+    },
+    "2026-04-17": {
+      "Amsterdam": 1
+    },
+    "2026-04-22": {
+      "Amsterdam": 1
+    },
+    "2026-04-23": {
+      "Amsterdam": 1,
+      "Hilversum": 1
+    },
+    "2026-04-24": {
+      "Amsterdam": 1
+    },
+    "2026-04-29": {
+      "Amsterdam": 1
+    },
+    "2026-04-30": {
+      "Amsterdam": 1,
+      "Hilversum": 1
+    },
+    "2026-05-01": {
+      "Amsterdam": 1
+    },
+    "2026-05-06": {
+      "Amsterdam": 1
+    },
+    "2026-05-07": {
+      "Amsterdam": 1,
+      "Hilversum": 1
+    },
+    "2026-05-08": {
+      "Amsterdam": 1
+    },
+    "2026-05-13": {
+      "Amsterdam": 1
+    },
+    "2026-05-14": {
+      "Amsterdam": 1,
+      "Hilversum": 1
+    },
+    "2026-05-15": {
+      "Amsterdam": 1
+    },
+    "2026-05-20": {
+      "Amsterdam": 1
+    },
+    "2026-05-21": {
+      "Amsterdam": 1,
+      "Hilversum": 1
+    },
+    "2026-05-22": {
+      "Amsterdam": 1
+    },
+    "2026-05-27": {
+      "Amsterdam": 1
+    },
+    "2026-05-28": {
+      "Amsterdam": 1,
+      "Hilversum": 1
+    },
+    "2026-05-29": {
+      "Amsterdam": 1
+    },
+    "2026-06-03": {
+      "Amsterdam": 1
+    },
+    "2026-06-04": {
+      "Amsterdam": 1,
+      "Hilversum": 1
+    },
+    "2026-06-05": {
+      "Amsterdam": 1
+    },
+    "2026-06-10": {
+      "Amsterdam": 1
+    },
+    "2026-06-11": {
+      "Amsterdam": 1,
+      "Hilversum": 1
+    },
+    "2026-06-12": {
+      "Amsterdam": 1
+    },
+    "2026-06-17": {
+      "Amsterdam": 1
+    },
+    "2026-06-18": {
+      "Amsterdam": 1,
+      "Hilversum": 1
+    },
+    "2026-06-19": {
+      "Amsterdam": 1
+    },
+    "2026-06-24": {
+      "Amsterdam": 1
+    },
+    "2026-06-25": {
+      "Amsterdam": 1,
+      "Hilversum": 1
+    },
+    "2026-06-26": {
+      "Amsterdam": 1
+    }
+  }
+}

@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from datetime import datetime as _dt
 import streamlit as st
 # Auth libraries are imported lazily inside main() based on config
 
@@ -22,11 +23,14 @@ def main() -> None:
     from ui.generator_page import render_generator_page  # type: ignore
     from ui.testers_page import render_testers_page  # type: ignore
     from ui.penalties_page import render_penalties_page  # type: ignore
-    from config import get_data_sources_config, get_locations_config  # type: ignore
+    from ui.shifts_page import render_shifts_page  # type: ignore
+    from config import (  # type: ignore
+        get_data_sources_config,
+        get_departments_config,
+    )
 
     # Load configs for visibility
     ds_conf = get_data_sources_config()
-    loc_conf = get_locations_config()
 
     # Auth: require login if enabled in config
     enable_auth = bool(ds_conf.get("enable_auth", False))
@@ -78,12 +82,6 @@ def main() -> None:
             st.info("Log in om verder te gaan.")
             st.stop()
 
-    with st.sidebar.expander("Config", expanded=False):
-        st.caption("Data sources")
-        st.json(ds_conf)
-        st.caption("Locations")
-        st.json(loc_conf)
-
     if enable_auth and authenticator is not None:
         try:
             authenticator.logout("Uitloggen", location="sidebar")
@@ -92,9 +90,44 @@ def main() -> None:
         if name:
             st.sidebar.caption(f"Ingelogd als: {name}")
 
+    st.sidebar.markdown("## ⚙️ Instellingen")
+    dept_conf = get_departments_config()
+    dept_map = dept_conf.get("departments", {}) if isinstance(dept_conf, dict) else {}
+    dept_names = list(dept_map.keys())
+    if dept_names:
+        default_dept = (
+            dept_conf.get("default_department")
+            if dept_conf.get("default_department") in dept_names
+            else dept_names[0]
+        )
+        st.sidebar.selectbox(
+            "Afdeling",
+            options=dept_names,
+            index=dept_names.index(default_dept),
+            key="global_department",
+        )
+    else:
+        st.sidebar.caption("Geen afdelingen-config gevonden.")
+
+    st.sidebar.markdown("### 📅 Periode")
+    current_year = _dt.now().year
+    st.sidebar.selectbox(
+        "Jaar",
+        options=[current_year - 1, current_year, current_year + 1, current_year + 2],
+        index=2,
+        key="global_year",
+    )
+    st.sidebar.selectbox(
+        "Kwartaal",
+        options=["Q1", "Q2", "Q3", "Q4"],
+        index=0,
+        key="global_quarter",
+    )
+
+    st.sidebar.markdown("---")
     page = st.sidebar.radio(
-        "📚 Kies weergave",
-        ["Generator", "Rooster", "Testers", "Penalties"],
+        "Paginas:",
+        ["Generator", "Shiftplan", "Rooster", "Testers", "Penalties"],
     )
 
     if page == "Rooster":
@@ -108,6 +141,9 @@ def main() -> None:
 
     elif page == "Generator":
         render_generator_page()
+
+    elif page == "Shiftplan":
+        render_shifts_page()
 
 
 if __name__ == "__main__":

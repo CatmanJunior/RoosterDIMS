@@ -4,14 +4,18 @@ import subprocess
 from pathlib import Path
 from datetime import datetime as _dt
 from typing import Optional
-
 import pandas as pd
 import streamlit as st
 
 from persons import csv_to_personlist
-from shift_list import dag_teams, get_weekday_from_date
-from config import get_locations_config, get_data_sources_config, get_weights_config
-
+from shift_list import build_location_plan, get_weekday_from_date
+from config import (
+    get_locations_config,
+    get_data_sources_config,
+    get_weights_config,
+    get_departments_config,
+    get_department_defaults,
+)
 
 def validate_csv_columns(csv_path: Path) -> tuple[bool, list[str], list[str]]:
     """
@@ -72,23 +76,35 @@ def render_generator_page() -> None:
     st.title("🔁 Roostergenerator")
 
     root = Path(__file__).resolve().parent.parent.parent  # project root (parent of src)
-    ds_conf = get_data_sources_config()
+    base_ds_conf = get_data_sources_config()
+    dept_conf = get_departments_config()
+    dept_map = dept_conf.get("departments", {}) if isinstance(dept_conf, dict) else {}
+    dept_names = list(dept_map.keys())
+    selected_department = st.session_state.get("global_department")
+    if not selected_department and dept_names:
+        default_dept = (
+            dept_conf.get("default_department")
+            if dept_conf.get("default_department") in dept_names
+            else dept_names[0]
+        )
+        selected_department = default_dept
+    if not dept_names:
+        st.caption("Geen afdelingen-config gevonden; standaard-instellingen worden gebruikt.")
+
+    dept_defaults = get_department_defaults(selected_department)
+    dept_ds_overrides = dept_defaults.get("data_sources", {}) if isinstance(dept_defaults, dict) else {}
+    ds_conf = {**base_ds_conf, **dept_ds_overrides}
+    locations_config_path = dept_defaults.get("locations_config") if isinstance(dept_defaults, dict) else None
     pref_dir_rel = ds_conf.get("preferences_dir", "data/preferences")
     prefs_dir = root / pref_dir_rel
     prefs_dir.mkdir(parents=True, exist_ok=True)
     plan_dir = root / "data"
     plan_dir.mkdir(exist_ok=True)
 
-    # Year selector
-    st.markdown("### 📅 Selecteer jaar voor rooster")
+    # Year & quarter selector
     current_year = _dt.now().year
-    selected_year = st.selectbox(
-        "Jaar",
-        options=[current_year - 1, current_year, current_year + 1, current_year + 2],
-        index=2,  # Default to next year (2026 if current is 2025)
-        key="roster_year",
-        help="Het jaar waarvoor de datums in het CSV-bestand gelden"
-    )
+    selected_year = st.session_state.get("global_year", current_year)
+    selected_quarter = st.session_state.get("global_quarter", "Q1")
     st.info(f"📌 Geselecteerd jaar: **{selected_year}** - Datums in CSV (d-m formaat) worden geïnterpreteerd als {selected_year}")
     st.markdown("---")
 
@@ -135,7 +151,11 @@ def render_generator_page() -> None:
         
         # Parse persons
         try:
-            persons = csv_to_personlist(str(csv_path), year=selected_year)
+            persons = csv_to_personlist(
+                str(csv_path),
+                year=selected_year,
+                locations_config_path=locations_config_path,
+            )
         except Exception as e:
             st.error(f"Kon CSV niet parsen: {e}")
 
@@ -158,18 +178,26 @@ def render_generator_page() -> None:
                         date_keys.add(k)
             date_list = sorted(date_keys)
 
-            # Seed from locations.json teams_per_date if present
-            loc_conf = get_locations_config()
-            locs = [loc.get("name") for loc in loc_conf.get("locations", [])]
-            initial_plan = {}
+            # Seed from locations config teams_per_date if present
+            try:
+                loc_conf = get_locations_config(locations_config_path)
+            except FileNotFoundError:
+                st.warning("Locatieconfig voor afdeling niet gevonden; gebruik standaard locaties.")
+                loc_conf = get_locations_config()
+                locations_config_path = None
+
+            shiftplans_dir = ds_conf.get("shiftplans_dir", "data/shiftplans")
+            dept_slug = (selected_department or "default").strip().replace(" ", "_")
+            shiftplan_path = root / shiftplans_dir / dept_slug / f"{selected_year}_{selected_quarter}.json"
+
+            locs, initial_plan, dag_teams, loc_defaults = build_location_plan(
+                locations_config_path,
+                str(shiftplan_path),
+            )
+            initial_plan = initial_plan or {}
             # add dates present in config
-            for loc in loc_conf.get("locations", []):
-                name = loc.get("name")
-                for d, count in (loc.get("teams_per_date") or {}).items():
-                    if isinstance(d, str) and len(d) == 10 and d[4] == "-" and d[7] == "-":
-                        date_list.append(d)
-                        initial_plan.setdefault(d, {loc_name: 0 for loc_name in locs})
-                        initial_plan[d][name] = int(count or 0)
+            for d in initial_plan.keys():
+                date_list.append(d)
             date_list = sorted(set(date_list))
 
             # Fill missing dates using weekday defaults
@@ -230,21 +258,26 @@ def render_generator_page() -> None:
                         if val > 0:
                             per_loc[loc_name][d] = val
 
-                # Merge into existing config
-                conf_path = root / "config" / "locations.json"
+                # Write shiftplan file
+                shiftplan_path.parent.mkdir(parents=True, exist_ok=True)
+                payload = {
+                    "year": selected_year,
+                    "quarter": selected_quarter,
+                    "teams_per_date": {},
+                }
+                teams_per_date: dict[str, dict[str, int]] = {}
+                for loc_name, dmap in per_loc.items():
+                    for d, val in dmap.items():
+                        teams_per_date.setdefault(d, {})[loc_name] = val
+                payload["teams_per_date"] = teams_per_date
                 try:
-                    current_conf = _json.loads(conf_path.read_text(encoding="utf-8"))
-                except Exception:
-                    current_conf = loc_conf
-                for loc in current_conf.get("locations", []):
-                    name = loc.get("name")
-                    if name in per_loc:
-                        loc["teams_per_date"] = per_loc[name]
-                try:
-                    conf_path.write_text(_json.dumps(current_conf, ensure_ascii=False, indent=2), encoding="utf-8")
-                    st.success(f"Bijgewerkt: {conf_path.relative_to(root)} (teams_per_date)")
+                    shiftplan_path.write_text(
+                        _json.dumps(payload, ensure_ascii=False, indent=2),
+                        encoding="utf-8",
+                    )
+                    st.success(f"Shiftplan opgeslagen: {shiftplan_path.relative_to(root)}")
                 except Exception as e:
-                    st.warning(f"Kon locaties-config niet schrijven: {e}")
+                    st.warning(f"Kon shiftplan niet schrijven: {e}")
         except Exception as e:
             st.warning(f"Kon geen bewerkbaar shift-overzicht maken: {e}")
 
@@ -267,13 +300,33 @@ def render_generator_page() -> None:
         "weekly_multi",
         "monthly_min_avail",
     ]
+    weights_conf = get_weights_config()
+
+    def _apply_department_defaults(dept_defaults: dict) -> None:
+        dept_constraints = dept_defaults.get("constraints", default_constraints)
+        dept_objectives = dept_defaults.get("objectives", default_objectives)
+        dept_weights = dept_defaults.get("weights", {})
+        for key in default_constraints:
+            st.session_state[f"cons_{key}"] = key in dept_constraints
+        for key in default_objectives:
+            st.session_state[f"obj_{key}"] = key in dept_objectives
+        for key, val in weights_conf.items():
+            st.session_state[f"weight_{key}"] = int(dept_weights.get(key, val) or 0)
+
+    applied_key = st.session_state.get("_dept_applied")
+    if dept_names and selected_department and applied_key != selected_department:
+        _apply_department_defaults(dept_defaults or {})
+        st.session_state["_dept_applied"] = selected_department
+    elif not dept_names and applied_key != "__default__":
+        _apply_department_defaults({})
+        st.session_state["_dept_applied"] = "__default__"
 
     with st.expander("Constraints (harde regels)", expanded=True):
         cols = st.columns(3)
         cons_selected = []
         for idx, key in enumerate(default_constraints):
             with cols[idx % 3]:
-                if st.checkbox(key, value=True, key=f"cons_{key}"):
+                if st.checkbox(key, key=f"cons_{key}"):
                     cons_selected.append(key)
 
     with st.expander("Doelen/penalties (zachte voorkeuren)", expanded=True):
@@ -281,23 +334,35 @@ def render_generator_page() -> None:
         obj_selected = []
         for idx, key in enumerate(default_objectives):
             with cols[idx % 3]:
-                if st.checkbox(key, value=True, key=f"obj_{key}"):
+                if st.checkbox(key, key=f"obj_{key}"):
                     obj_selected.append(key)
 
     with st.expander("Gewichten voor doelen", expanded=True):
-        weights_conf = get_weights_config()
         w_inputs = {}
         cols = st.columns(3)
         for idx, (k, v) in enumerate(weights_conf.items()):
             with cols[idx % 3]:
                 try:
+                    weight_key = f"weight_{k}"
+                    if weight_key not in st.session_state:
+                        st.session_state[weight_key] = int(v) if isinstance(v, (int, float)) else 0
                     w_inputs[k] = st.number_input(
-                        f"{k}", min_value=0, step=1, value=int(v) if isinstance(v, (int, float)) else 0
+                        f"{k}",
+                        min_value=0,
+                        step=1,
+                        value=int(st.session_state[weight_key]),
+                        key=weight_key,
                     )
                 except Exception:
                     w_inputs[k] = v
 
     st.markdown("3) Controleer de waarden. Als alles goed is, genereer het rooster.")
+    rooster_name = st.text_input(
+        "Naam van rooster",
+        value=st.session_state.get("rooster_name", ""),
+        help="Optionele naam. Hiermee wordt het rooster opgeslagen met die naam.",
+    )
+    st.session_state["rooster_name"] = rooster_name
     disabled = not (selected_any and preview_ok)
     verbose = st.checkbox("Verbose output", value=False)
     if st.button("Genereer rooster (run main.py)", disabled=disabled):
@@ -306,6 +371,16 @@ def render_generator_page() -> None:
         cmd = [str(py), "-X", "utf8", str(main_py)]
         if csv_path is not None:
             cmd += ["--csv", str(csv_path)]
+        if rooster_name and rooster_name.strip():
+            cmd += ["--rooster-name", rooster_name.strip()]
+        if selected_department:
+            cmd += ["--department", selected_department]
+        cmd += ["--quarter", str(selected_quarter)]
+        shiftplans_dir = ds_conf.get("shiftplans_dir", "data/shiftplans")
+        dept_slug = (selected_department or "default").strip().replace(" ", "_")
+        shiftplan_path = root / shiftplans_dir / dept_slug / f"{selected_year}_{selected_quarter}.json"
+        if shiftplan_path.exists():
+            cmd += ["--shiftplan-path", str(shiftplan_path)]
 
         # Write weights override to JSON and pass path
         try:

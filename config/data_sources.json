@@ -3,6 +3,8 @@
   "preferences_dir": "data/preferences",
   "uploaded_glob": "data/preferences/uploaded_*.csv",
   "roster_csv": "data/generated/rooster.csv",
+  "roster_folder": "data/generated/roosters",
+  "shiftplans_dir": "data/shiftplans",
   "penalties_csv": "data/generated/penalties.csv",
   "penalties_summary_csv": "data/generated/penalties_summary.csv",
   "enable_auth": false

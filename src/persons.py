@@ -9,7 +9,7 @@ def is_date_field(keyname):
     return bool(re.match(r"^(?:0?[1-9]|[12][0-9]|3[01])-(?:0?[1-9]|1[0-2])$", keyname))
 
 
-def csv_to_personlist(csv_path, year=2026):
+def csv_to_personlist(csv_path, year=2026, locations_config_path: str | None = None):
     person_list = []
     # Auto-detect delimiter (comma, semicolon, or tab) and strip BOM if present
     with open(csv_path, "r", newline="", encoding="utf-8-sig") as csvfile:
@@ -51,7 +51,7 @@ def csv_to_personlist(csv_path, year=2026):
             pref_loc = _safe_str(row.get("Pref_Loc"), "").strip()
 
             # Dynamically extract all Pref_Loc_<digit> columns
-            loc_conf = get_locations_config()
+            loc_conf = get_locations_config(locations_config_path)
             locations = [loc.get("name") for loc in loc_conf.get("locations", [])]
             pref_loc_flags = {}
             for idx, loc_name in enumerate(locations):

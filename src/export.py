@@ -11,20 +11,7 @@ def export_to_csv(data, filename):
         print("No data to export.")
         return
 
-
-        #if the value is a list, split it into multiple columns like tester1, tester2, tester3. But dont touch the original data list, create a new one with the modified keys and values. This is because the original data list may be used elsewhere in the code and we don't want to modify it.
-    modified_data = []
-    for row in data:
-        modified_row = {}
-        for key, value in row.items():
-            if isinstance(value, list):
-                for i, item in enumerate(value):
-                    modified_row[f"{key}{i+1}"] = item
-            else:
-                modified_row[key] = value
-        modified_data.append(modified_row)
-    
-    data = modified_data
+    data = split_testers(data)
 
 
     with open(filename, mode='w', newline='', encoding='utf-8') as file:
@@ -35,3 +22,18 @@ def export_to_csv(data, filename):
 
 
     print(f"Data successfully exported to {filename}.")
+
+def split_testers(data):
+    modified_data = []
+    for row in data:
+        modified_row = {}
+        for key, value in row.items():
+            if key == "testers" and isinstance(value, list):
+                for i, item in enumerate(value):
+                    modified_row[f"{key}{i+1}"] = item
+            else:
+                modified_row[key] = value
+        modified_data.append(modified_row)
+    
+    data = modified_data
+    return data

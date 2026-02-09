@@ -4,7 +4,12 @@ import sys
 from export import export_to_csv
 import csv as _csv
 from pathlib import Path
-from config import get_data_sources_config, get_weights_config
+from config import (
+    get_data_sources_config,
+    get_weights_config,
+    get_department_defaults,
+    get_locations_config,
+)
 from persons import csv_to_personlist
 from shift_list import Filled_Shift, csv_to_shiftlist
 from constraints import (
@@ -23,7 +28,8 @@ from debug import (
 from penalties import export_penalties
 from penalty_terms import apply_objective
 
-default_csv = get_data_sources_config().get(
+_BASE_DS_CONF = get_data_sources_config()
+default_csv = _BASE_DS_CONF.get(
     "default_persons_csv", "data/Data_sanitized_OKT-DEC2025.csv"
 )
 
@@ -33,7 +39,7 @@ parser.add_argument(
     "--csv",
     dest="csv_file",
     help="Path to the input CSV with persons and dates",
-    default=default_csv,
+    default=None,
 )
 # Deprecated: --shift-plan (use config/locations.json teams_per_date via UI)
 parser.add_argument(
@@ -84,7 +90,41 @@ parser.add_argument(
     default=2026,
     help="Year for the roster (default: 2026)",
 )
+parser.add_argument(
+    "--quarter",
+    dest="quarter",
+    default="Q1",
+    help="Quarter for the roster (Q1, Q2, Q3, Q4)",
+)
+parser.add_argument(
+    "--department",
+    dest="department",
+    help="Afdeling om locatie-/data-/people-config te selecteren",
+)
+parser.add_argument(
+    "--shiftplan-path",
+    dest="shiftplan_path",
+    help="Pad naar shiftplan JSON (teams per datum per locatie)",
+)
+parser.add_argument(
+    "--rooster-name",
+    dest="rooster_name",
+    help="Optionele naam voor het rooster (wordt gebruikt in bestandsnaam)",
+)
 args, _ = parser.parse_known_args(sys.argv[1:])
+
+dept_defaults = get_department_defaults(getattr(args, "department", None))
+dept_ds_overrides = dept_defaults.get("data_sources", {}) if isinstance(dept_defaults, dict) else {}
+DS_CONF = {**_BASE_DS_CONF, **dept_ds_overrides}
+LOCATIONS_CONFIG_PATH = dept_defaults.get("locations_config") if isinstance(dept_defaults, dict) else None
+if LOCATIONS_CONFIG_PATH:
+    try:
+        get_locations_config(LOCATIONS_CONFIG_PATH)
+    except FileNotFoundError:
+        LOCATIONS_CONFIG_PATH = None
+
+if args.csv_file is None:
+    args.csv_file = DS_CONF.get("default_persons_csv", default_csv)
 
 WEIGHTS = (
     get_weights_config(args.weights_path)
@@ -115,8 +155,16 @@ model = cp_model.CpModel()
 csv_file = args.csv_file
 
 # Build shifts using locations.json configuration (teams_per_date preferred)
-shift_list = csv_to_shiftlist(csv_file)
-person_list = csv_to_personlist(csv_file, year=args.year)
+shift_list = csv_to_shiftlist(
+    csv_file,
+    locations_config_path=LOCATIONS_CONFIG_PATH,
+    shiftplan_path=getattr(args, "shiftplan_path", None),
+)
+person_list = csv_to_personlist(
+    csv_file,
+    year=args.year,
+    locations_config_path=LOCATIONS_CONFIG_PATH,
+)
 
 
 def create_assignment_vars():
@@ -150,7 +198,7 @@ def add_constraints(model, assignment_vars):
             model, assignment_vars, person_list, shift_list
         )
 
-    #TODO dit is een beetje dubbel
+    #TODO dit moet een soft constraint worden met een penalty in plaats van een harde constraint. Het verschilt per regio.
     if "max_per_week" in args.use_constraints:
         add_max_x_shifts_per_week_constraints(
             model, assignment_vars, person_list, shift_list, max_shifts_per_week=2
@@ -211,6 +259,21 @@ def run_model():
 
     status = solver.Solve(model)
     return solver, status
+
+
+def _sanitize_rooster_name(name: str) -> str:
+    import re
+
+    cleaned = re.sub(r"[^A-Za-z0-9_-]+", "_", name.strip())
+    cleaned = cleaned.strip("_-")
+    return cleaned or "rooster"
+
+
+def _resolve_roster_base_dir(ds_conf: dict, year: int, quarter: str) -> Path:
+    roster_folder = ds_conf.get("roster_folder")
+    roster_csv = ds_conf.get("roster_csv", "rooster.csv")
+    base = Path(roster_folder) if roster_folder else Path(roster_csv).parent
+    return base / str(year) / str(quarter)
 
 
 def diagnose_unplanned_days(solver, status, assignment_vars):
@@ -410,9 +473,17 @@ if __name__ == "__main__":
         print_shift_count_per_person(assignment_vars, solver, shift_list, person_list)
 
         # Resolve export paths from config and ensure directory exists
-        ds_conf = get_data_sources_config()
-        roster_path = ds_conf.get("roster_csv", "rooster.csv")
-        penalties_path = ds_conf.get("penalties_csv", "penalties.csv")
+        ds_conf = DS_CONF
+        roster_name = getattr(args, "rooster_name", None)
+        quarter = getattr(args, "quarter", "Q1")
+        base_dir = _resolve_roster_base_dir(ds_conf, args.year, quarter)
+        if roster_name:
+            safe_name = _sanitize_rooster_name(roster_name)
+            roster_path = str(base_dir / f"{safe_name}.csv")
+            penalties_path = str(base_dir / f"{safe_name}_penalties.csv")
+        else:
+            roster_path = str(base_dir / "rooster.csv")
+            penalties_path = str(base_dir / "penalties.csv")
         try:
             Path(roster_path).parent.mkdir(parents=True, exist_ok=True)
             Path(penalties_path).parent.mkdir(parents=True, exist_ok=True)
@@ -442,10 +513,17 @@ if __name__ == "__main__":
                 )
 
             # Schrijf ook een diagnostics CSV zodat de UI deze kan tonen
-            ds_conf = get_data_sources_config()
+            ds_conf = DS_CONF
             diag_path = ds_conf.get("diagnostics_csv")
             if not diag_path:
-                roster_path = ds_conf.get("roster_csv", "rooster.csv")
+                roster_name = getattr(args, "rooster_name", None)
+                quarter = getattr(args, "quarter", "Q1")
+                base_dir = _resolve_roster_base_dir(ds_conf, args.year, quarter)
+                if roster_name:
+                    safe_name = _sanitize_rooster_name(roster_name)
+                    roster_path = str(base_dir / f"{safe_name}.csv")
+                else:
+                    roster_path = str(base_dir / "rooster.csv")
                 import os as _os
 
                 root, base = _os.path.split(roster_path)

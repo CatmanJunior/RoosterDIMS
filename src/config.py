@@ -14,12 +14,26 @@ def load_json(path: str) -> Dict[str, Any]:
         return json.load(f)
 
 
-def get_locations_config() -> Dict[str, Any]:
-    return load_json("config/locations.json")
+def get_locations_config(path: str | None = None) -> Dict[str, Any]:
+    return load_json(path or "config/locations.json")
 
 
-def get_data_sources_config() -> Dict[str, Any]:
-    return load_json("config/data_sources.json")
+def get_data_sources_config(path: str | None = None) -> Dict[str, Any]:
+    return load_json(path or "config/data_sources.json")
+
+
+def get_departments_config() -> Dict[str, Any]:
+    try:
+        return load_json("config/departments.json")
+    except FileNotFoundError:
+        return {"departments": {}}
+
+
+def get_department_defaults(department: str | None) -> Dict[str, Any]:
+    conf = get_departments_config()
+    if not department:
+        department = conf.get("default_department")
+    return conf.get("departments", {}).get(department, {})
 
 
 def get_weights_config(path: str | None = None) -> Dict[str, Any]:

@@ -5,12 +5,33 @@ import pandas as pd
 import streamlit as st
 
 from persons import csv_to_personlist
-from config import get_locations_config
+from config import (
+    get_locations_config,
+    get_departments_config,
+    get_department_defaults,
+)
 
 
 def render_testers_page(ds_conf: dict, project_root: object) -> None:
     """Render the Testers overview. Expects ds_conf from config and project_root (Path or str)."""
     st.title("👥 Testers Overzicht")
+
+    dept_conf = get_departments_config()
+    dept_map = dept_conf.get("departments", {}) if isinstance(dept_conf, dict) else {}
+    dept_names = list(dept_map.keys())
+    selected_department = st.session_state.get("global_department")
+    if not selected_department and dept_names:
+        default_dept = (
+            dept_conf.get("default_department")
+            if dept_conf.get("default_department") in dept_names
+            else dept_names[0]
+        )
+        selected_department = default_dept
+
+    dept_defaults = get_department_defaults(selected_department)
+    dept_ds_overrides = dept_defaults.get("data_sources", {}) if isinstance(dept_defaults, dict) else {}
+    ds_conf = {**ds_conf, **dept_ds_overrides}
+    locations_config_path = dept_defaults.get("locations_config") if isinstance(dept_defaults, dict) else None
 
     # Laad brondata (altijd) om echte beschikbaarheid te tonen
     try:
@@ -37,7 +58,7 @@ def render_testers_page(ds_conf: dict, project_root: object) -> None:
             # No uploaded files – use configured default
             csv_path = project_root / default_csv
 
-        people = csv_to_personlist(str(csv_path))
+        people = csv_to_personlist(str(csv_path), locations_config_path=locations_config_path)
     except Exception as e:
         st.error(f"Kon testers niet laden: {e}")
         people = []
@@ -104,7 +125,7 @@ def render_testers_page(ds_conf: dict, project_root: object) -> None:
                     try:
                         existing.pop(idx)
                         excl_path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
-                        st.experimental_rerun()
+                        st.rerun()
                     except Exception as e:
                         st.error(f"Kon exclusie niet verwijderen: {e}")
     st.markdown("---")
@@ -158,7 +179,7 @@ def render_testers_page(ds_conf: dict, project_root: object) -> None:
 
     # Expand preference flags per configured location (pref_loc_flags is a dict per person)
     try:
-        loc_conf = get_locations_config()
+        loc_conf = get_locations_config(locations_config_path)
         locations = [loc.get("name") for loc in loc_conf.get("locations", [])]
     except Exception:
         locations = []

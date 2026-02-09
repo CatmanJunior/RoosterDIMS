@@ -1,0 +1,28 @@
+assigned_in_month,assigned_total,avg_per_month,component,date,day,location,month,months,person,target_total,team,units,weighted
+,,,location,2026-04-02,do,Hilversum,,,Ilse Kulderij,,0,1,1
+,,,fairness,,,,,,,,,12,60
+,11,4,monthly_avg,,,,,3,Celine Goossen,12,,1,20
+,0,1,monthly_avg,,,,,3,Hylke Vervaeke,3,,3,180
+,0,1,monthly_avg,,,,,3,Jane Roeters,3,,3,180
+,2,1,monthly_avg,,,,,3,Quani Wolters,3,,1,20
+,0,1,monthly_avg,,,,,3,Senna Sie,3,,3,180
+,0,1,monthly_avg,,,,,3,Daniël Tibben,3,,3,180
+,11,4,monthly_avg,,,,,3,Dylan Verbeek,12,,1,20
+,5,2,monthly_avg,,,,,3,Jorn Dekker,6,,1,20
+,9,4,monthly_avg,,,,,3,Mascha Mulder,12,,3,180
+,5,2,monthly_avg,,,,,3,Nikki de Graaf,6,,1,20
+,4,2,monthly_avg,,,,,3,Quintin Raemaekers,6,,2,80
+,7,3,monthly_avg,,,,,3,Swelko Bobas,9,,2,80
+,5,2,monthly_avg,,,,,3,Vivian Schipper,6,,1,20
+0,,,monthly_min_avail,,,,4,,Backup Tester 1,,,1,50
+0,,,monthly_min_avail,,,,5,,Backup Tester 1,,,1,50
+0,,,monthly_min_avail,,,,6,,Backup Tester 1,,,1,50
+0,,,monthly_min_avail,,,,4,,Backup Tester 2,,,1,50
+0,,,monthly_min_avail,,,,5,,Backup Tester 2,,,1,50
+0,,,monthly_min_avail,,,,6,,Backup Tester 2,,,1,50
+0,,,monthly_min_avail,,,,4,,Backup Peer 1,,,1,50
+0,,,monthly_min_avail,,,,5,,Backup Peer 1,,,1,50
+0,,,monthly_min_avail,,,,6,,Backup Peer 1,,,1,50
+0,,,monthly_min_avail,,,,4,,Backup Peer 2,,,1,50
+0,,,monthly_min_avail,,,,5,,Backup Peer 2,,,1,50
+0,,,monthly_min_avail,,,,6,,Backup Peer 2,,,1,50

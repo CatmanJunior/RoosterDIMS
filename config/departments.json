@@ -1,0 +1,64 @@
+{
+  "default_department": "AH",
+  "departments": {
+    "AH": {
+      "locations_config": "config/locations_ah.json",
+      "data_sources": {
+        "default_persons_csv": "data/preferences/ah_people.csv",
+        "preferences_dir": "data/ah_preferences"
+      },
+      "constraints": [
+        "availability",
+        "max_per_day",
+        "exact_testers",
+        "min_first",
+        "max_per_week",
+        "single_first"
+      ],
+      "objectives": [
+        "location",
+        "fairness",
+        "monthly",
+        "monthly_avg",
+        "weekly_multi",
+        "monthly_min_avail"
+      ],
+      "weights": {
+        "location": 1,
+        "fairness": 5,
+        "monthly": 100,
+        "monthly_avg": 20,
+        "weekly_multi": 15,
+        "monthly_min_avail": 50
+      }
+    },
+    "UA": {
+      "locations_config": "config/locations_ua.json",
+      "data_sources": {
+        "default_persons_csv": "data/preferences/ua_people.csv",
+        "preferences_dir": "data/ua_preferences"
+      },
+      "constraints": [
+        "availability",
+        "max_per_day",
+        "exact_testers",
+        "min_first",
+        "max_per_week"
+      ],
+      "objectives": [
+        "location",
+        "fairness",
+        "monthly",
+        "monthly_avg"
+      ],
+      "weights": {
+        "location": 2,
+        "fairness": 5,
+        "monthly": 120,
+        "monthly_avg": 25,
+        "weekly_multi": 10,
+        "monthly_min_avail": 40
+      }
+    }
+  }
+}

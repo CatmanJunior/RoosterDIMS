@@ -1,6 +1,4 @@
 import os
-from typing import Dict
-from config import get_locations_config
 
 
 def _log(msg: str) -> None:
@@ -13,6 +11,20 @@ def _log(msg: str) -> None:
 def add_availability_constraints(model, assignment_vars, person_list, shift_list):
     for t_idx, tester in enumerate(person_list):
         for s_idx, shift in enumerate(shift_list):
+            allow_peer = shift.get("allow_peer", True)
+            allow_tester = shift.get("allow_tester", True)
+            if tester.get("role") == "P" and not allow_peer:
+                model.Add(assignment_vars[(t_idx, s_idx)] == 0)
+                _log(
+                    f"Blocking peer assignment for {tester['name']} on {shift['date']} (loc={shift['location']})"
+                )
+                continue
+            if tester.get("role") == "T" and not allow_tester:
+                model.Add(assignment_vars[(t_idx, s_idx)] == 0)
+                _log(
+                    f"Blocking tester assignment for {tester['name']} on {shift['date']} (loc={shift['location']})"
+                )
+                continue
             # Als de tester niet beschikbaar is op deze datum, dan kan hij/zij niet worden ingepland,
             # of als de datum niet in de beschikbaarheidslijst staat, dan wel.
             if not tester["availability"].get(shift["date"], True):
@@ -53,30 +65,14 @@ def add_exactly_x_testers_per_shift_constraints(
     model, assignment_vars, shift_list, person_list, x: int = 2
 ):
     """Enforce the exact number of testers per shift.
-
-    Behavior:
-    - If a shift's location has "peers": 0 in config/locations.json, then that shift
-      requires exactly 1 tester (1 T, no peer).
-    - Otherwise, use the legacy rule of exactly `x` testers (default 2).
     """
-    # Build a map {location_name: peers_flag}
-    loc_conf = get_locations_config()
-    loc_peers: Dict[str, int] = {
-        loc.get("name"): int(loc.get("peers", 1))
-        for loc in loc_conf.get("locations", [])
-    }
-
     for s_idx, shift in enumerate(shift_list):
-        loc = shift["location"]
-        peers_flag = loc_peers.get(loc, 1)
-        required_testers = 1 if peers_flag == 0 else x
-
         model.Add(
             sum(assignment_vars[(t_idx, s_idx)] for t_idx in range(len(person_list)))
-            == required_testers
+            == x
         )
         _log(
-            f"Adding constraint for exactly {required_testers} testers on shift {s_idx} (loc={loc}, peers={peers_flag})"
+            f"Adding constraint for exactly {x} testers on shift {s_idx} (loc={shift['location']})"
         )
 
 
@@ -85,6 +81,8 @@ def add_minimum_first_tester_per_shift_constraints(
     model, assignment_vars, person_list, shift_list
 ):
     for s_idx, shift in enumerate(shift_list):
+        if not shift.get("allow_tester", True):
+            continue
         eerste_testers = [
             t_idx for t_idx, p in enumerate(person_list) if p["role"] == "T"
         ]
@@ -123,6 +121,9 @@ def add_single_first_tester_constraints(
     peer_idx = [i for i, p in enumerate(person_list) if p["role"] == "P"]
 
     for s_idx, shift in enumerate(shift_list):
+        if not shift.get("allow_peer", True):
+            # If peers are not allowed, don't limit first testers
+            continue
         # Peers die beschikbaar zijn op deze dag
         beschikbare_peers = [
             t_idx
