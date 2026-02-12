@@ -1,0 +1,41 @@
+location,day,date,weeknummer,team,testers1,testers2
+Utrecht,do,2026-04-02,14,0,Sarah Hilkemeijer,Oek
+Amersfoort,do,2026-04-02,14,0,Rene 't hart,Tomas
+Utrecht,di,2026-04-07,15,0,Sarah Hilkemeijer,Sarah
+Utrecht,do,2026-04-09,15,0,Milan de Roode,Peter
+Amersfoort,do,2026-04-09,15,0,Sam,Naomi
+UitslagenLijn,do,2026-04-09,15,0,Megan,Lian
+Utrecht,di,2026-04-14,16,0,Rene 't hart,Lian
+Utrecht,do,2026-04-16,16,0,Rosa,Tomas
+Amersfoort,do,2026-04-16,16,0,Sam,Naomi
+Utrecht,di,2026-04-21,17,0,Sarah Hilkemeijer,Peter
+Utrecht,do,2026-04-23,17,0,Rene 't hart,Aumer van Reemst
+Amersfoort,do,2026-04-23,17,0,Sam,Naomi
+UitslagenLijn,do,2026-04-23,17,0,Elske,Lian
+Utrecht,di,2026-04-28,18,0,Rene 't hart,Sarah
+Utrecht,do,2026-04-30,18,0,Sarah Hilkemeijer,Peter
+Amersfoort,do,2026-04-30,18,0,Sam,Naomi
+Utrecht,do,2026-05-07,19,0,Sam,Aumer van Reemst
+Amersfoort,do,2026-05-07,19,0,Sol,Naomi
+Utrecht,di,2026-05-12,20,0,Sarah Hilkemeijer,Sarah
+Utrecht,di,2026-05-19,21,0,Milan de Roode,Sarah
+Utrecht,do,2026-05-21,21,0,Noor ten Veen,Peter
+Amersfoort,do,2026-05-21,21,0,Sam,Tomas
+Utrecht,di,2026-05-26,22,0,Cato van Halem,Peter
+Utrecht,do,2026-05-28,22,0,Rosa,Tomas
+Amersfoort,do,2026-05-28,22,0,Rene 't hart,Naomi
+UitslagenLijn,do,2026-05-28,22,0,Megan,Lian
+Utrecht,di,2026-06-02,23,0,Sarah Hilkemeijer,Megan
+Utrecht,do,2026-06-04,23,0,Rosa,Lian
+Amersfoort,do,2026-06-04,23,0,Rene 't hart,Tomas
+Utrecht,di,2026-06-09,24,0,Sam,Sarah
+Utrecht,do,2026-06-11,24,0,Milan de Roode,Oek
+Amersfoort,do,2026-06-11,24,0,Rene 't hart,Naomi
+UitslagenLijn,do,2026-06-11,24,0,Elske,Lian
+Utrecht,di,2026-06-16,25,0,Cato van Halem,Rienje
+Utrecht,do,2026-06-18,25,0,Noortje Kersten,Oek
+Amersfoort,do,2026-06-18,25,0,Rene 't hart,Naomi
+Utrecht,di,2026-06-23,26,0,Noor ten Veen,Sarah
+Utrecht,do,2026-06-25,26,0,Sam,Aumer van Reemst
+Amersfoort,do,2026-06-25,26,0,Rene 't hart,Tomas
+Utrecht,di,2026-06-30,27,0,Sam,Peter

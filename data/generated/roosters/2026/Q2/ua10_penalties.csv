@@ -1,0 +1,31 @@
+assigned_in_month,assigned_total,avg_per_month,cap,component,date,day,location,month,months,person,target_total,team,units,weighted
+,,,,location,2026-05-07,do,Amersfoort,,,Sol,,0,1,1
+,,,,location,2026-04-09,do,UitslagenLijn,,,Megan,,0,1,1
+,,,,location,2026-05-28,do,UitslagenLijn,,,Megan,,0,1,1
+,,,,location,2026-06-02,di,Utrecht,,,Megan,,0,1,1
+,,,,location,2026-04-09,do,UitslagenLijn,,,Lian,,0,1,1
+,,,,location,2026-04-14,di,Utrecht,,,Lian,,0,1,1
+,,,,location,2026-04-23,do,UitslagenLijn,,,Lian,,0,1,1
+,,,,location,2026-05-28,do,UitslagenLijn,,,Lian,,0,1,1
+,,,,location,2026-06-04,do,Utrecht,,,Lian,,0,1,1
+,,,,location,2026-06-11,do,UitslagenLijn,,,Lian,,0,1,1
+4,,,3,monthly,,,,4,,Naomi,,,1,100
+3,,,2,monthly,,,,4,,Peter,,,1,100
+,,,,fairness,,,,,,,,,8,40
+,1,1,,monthly_avg,,,,,3,Noortje Kersten,3,,2,80
+,3,2,,monthly_avg,,,,,3,Milan de Roode,6,,3,180
+,9,4,,monthly_avg,,,,,3,Sam,12,,3,180
+,6,3,,monthly_avg,,,,,3,Sarah Hilkemeijer,9,,3,180
+,2,1,,monthly_avg,,,,,3,Cato van Halem,3,,1,20
+,9,4,,monthly_avg,,,,,3,Rene 't hart,12,,3,180
+,2,1,,monthly_avg,,,,,3,Noor ten Veen,3,,1,20
+,1,1,,monthly_avg,,,,,3,Sol,3,,2,80
+,2,1,,monthly_avg,,,,,3,Elske,3,,1,20
+,3,2,,monthly_avg,,,,,3,Rosa,6,,3,180
+0,,,,monthly_min_avail,,,,4,,Noortje Kersten,,,1,50
+0,,,,monthly_min_avail,,,,5,,Noortje Kersten,,,1,50
+0,,,,monthly_min_avail,,,,4,,Cato van Halem,,,1,50
+0,,,,monthly_min_avail,,,,4,,Noor ten Veen,,,1,50
+0,,,,monthly_min_avail,,,,4,,Sol,,,1,50
+0,,,,monthly_min_avail,,,,6,,Sol,,,1,50
+0,,,,monthly_min_avail,,,,5,,Elske,,,1,50

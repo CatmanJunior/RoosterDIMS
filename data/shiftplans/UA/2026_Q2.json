@@ -1,5 +1,94 @@
 {
   "year": 2026,
   "quarter": "Q2",
-  "teams_per_date": {}
+  "teams_per_date": {
+    "2026-04-02": {
+      "Utrecht": 1,
+      "Amersfoort": 1
+    },
+    "2026-04-07": {
+      "Utrecht": 1
+    },
+    "2026-04-09": {
+      "Utrecht": 1,
+      "Amersfoort": 1,
+      "UitslagenLijn": 1
+    },
+    "2026-04-14": {
+      "Utrecht": 1
+    },
+    "2026-04-16": {
+      "Utrecht": 1,
+      "Amersfoort": 1
+    },
+    "2026-04-21": {
+      "Utrecht": 1
+    },
+    "2026-04-23": {
+      "Utrecht": 1,
+      "Amersfoort": 1,
+      "UitslagenLijn": 1
+    },
+    "2026-04-28": {
+      "Utrecht": 1
+    },
+    "2026-04-30": {
+      "Utrecht": 1,
+      "Amersfoort": 1
+    },
+    "2026-05-07": {
+      "Utrecht": 1,
+      "Amersfoort": 1
+    },
+    "2026-05-12": {
+      "Utrecht": 1
+    },
+    "2026-05-19": {
+      "Utrecht": 1
+    },
+    "2026-05-21": {
+      "Utrecht": 1,
+      "Amersfoort": 1
+    },
+    "2026-05-26": {
+      "Utrecht": 1
+    },
+    "2026-05-28": {
+      "Utrecht": 1,
+      "Amersfoort": 1,
+      "UitslagenLijn": 1
+    },
+    "2026-06-02": {
+      "Utrecht": 1
+    },
+    "2026-06-04": {
+      "Utrecht": 1,
+      "Amersfoort": 1
+    },
+    "2026-06-09": {
+      "Utrecht": 1
+    },
+    "2026-06-11": {
+      "Utrecht": 1,
+      "Amersfoort": 1,
+      "UitslagenLijn": 1
+    },
+    "2026-06-16": {
+      "Utrecht": 1
+    },
+    "2026-06-18": {
+      "Utrecht": 1,
+      "Amersfoort": 1
+    },
+    "2026-06-23": {
+      "Utrecht": 1
+    },
+    "2026-06-25": {
+      "Utrecht": 1,
+      "Amersfoort": 1
+    },
+    "2026-06-30": {
+      "Utrecht": 1
+    }
+  }
 }

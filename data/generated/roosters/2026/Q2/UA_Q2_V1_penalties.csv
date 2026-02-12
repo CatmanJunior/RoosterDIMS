@@ -1,0 +1,47 @@
+assigned_in_month,assigned_total,avg_per_month,cap,component,date,day,location,month,months,person,target_total,team,units,weighted
+,,,,location,2026-04-09,do,UitslagenLijn,,,Tomas,,0,1,1
+,,,,location,2026-05-28,do,UitslagenLijn,,,Tomas,,0,1,1
+,,,,location,2026-06-11,do,UitslagenLijn,,,Tomas,,1,1,1
+,,,,location,2026-04-23,do,UitslagenLijn,,,Aumer van Reemst,,1,1,1
+,,,,location,2026-04-09,do,UitslagenLijn,,,Sarah G,,0,1,1
+,,,,location,2026-06-11,do,UitslagenLijn,,,Peter,,1,1,1
+,,,,location,2026-04-09,do,UitslagenLijn,,,Megan,,1,1,1
+,,,,location,2026-04-23,do,UitslagenLijn,,,Megan,,1,1,1
+,,,,location,2026-05-28,do,UitslagenLijn,,,Megan,,0,1,1
+,,,,location,2026-06-11,do,UitslagenLijn,,,Megan,,0,1,1
+,,,,location,2026-04-23,do,Amersfoort,,,Sol,,0,1,1
+,,,,location,2026-06-11,do,Amersfoort,,,Sol,,0,1,1
+,,,,location,2026-04-09,do,UitslagenLijn,,,Lian,,1,1,1
+,,,,location,2026-04-14,di,Utrecht,,,Lian,,0,1,1
+,,,,location,2026-05-28,do,Amersfoort,,,Lian,,0,1,1
+,,,,location,2026-06-02,di,Utrecht,,,Lian,,0,1,1
+,,,,location,2026-04-09,do,Amersfoort,,,Backup Tester 2,,0,1,1
+,,,,location,2026-05-28,do,UitslagenLijn,,,Backup Tester 2,,1,1,1
+,,,,location,2026-06-04,do,Amersfoort,,,Backup Tester 2,,0,1,1
+,,,,location,2026-04-23,do,UitslagenLijn,,,Backup Tester 1,,0,1,1
+,,,,location,2026-05-28,do,UitslagenLijn,,,Backup Tester 1,,1,1,1
+,,,,location,2026-06-16,di,Utrecht,,,Backup Tester 1,,0,1,1
+3,,,2,monthly,,,,4,,Rosa,,,1,100
+4,,,3,monthly,,,,4,,Naomi,,,1,100
+,,,,fairness,,,,,,,,,12,60
+,1,3,,monthly_avg,,,,,3,Rienje,9,,8,1280
+,2,1,,monthly_avg,,,,,3,Noortje Kersten,3,,1,20
+,4,2,,monthly_avg,,,,,3,Milan de Roode,6,,2,80
+,2,1,,monthly_avg,,,,,3,Elske,3,,1,20
+,9,4,,monthly_avg,,,,,3,Sam,12,,3,180
+,6,3,,monthly_avg,,,,,3,Sarah Hilkemeijer,9,,3,180
+,2,1,,monthly_avg,,,,,3,Cato van Halem,3,,1,20
+,12,5,,monthly_avg,,,,,3,Rene 't hart,15,,3,180
+,2,1,,monthly_avg,,,,,3,Noor ten Veen,3,,1,20
+,2,1,,monthly_avg,,,,,3,Sol,3,,1,20
+0,,,,monthly_min_avail,,,,4,,Noortje Kersten,,,1,50
+0,,,,monthly_min_avail,,,,5,,Elske,,,1,50
+0,,,,monthly_min_avail,,,,4,,Cato van Halem,,,1,50
+0,,,,monthly_min_avail,,,,5,,Noor ten Veen,,,1,50
+0,,,,monthly_min_avail,,,,5,,Sol,,,1,50
+0,,,,monthly_min_avail,,,,4,,Backup Peer 2,,,1,50
+0,,,,monthly_min_avail,,,,5,,Backup Peer 2,,,1,50
+0,,,,monthly_min_avail,,,,6,,Backup Peer 2,,,1,50
+0,,,,monthly_min_avail,,,,4,,Backup Peer 1,,,1,50
+0,,,,monthly_min_avail,,,,5,,Backup Peer 1,,,1,50
+0,,,,monthly_min_avail,,,,6,,Backup Peer 1,,,1,50

@@ -1,19 +1,55 @@
 {
   "locations": [
     {
-      "name": "Lab",
+      "name": "Utrecht",
       "peers": 1,
       "FTIR": 1,
       "teams_per_date": {},
       "teams_per_day": {
-        "ma": 1,
+        "ma": 0,
         "di": 1,
-        "wo": 1,
+        "wo": 0,
         "do": 1,
-        "vr": 1,
+        "vr": 0,
         "za": 0,
         "zo": 0
-      }
+      },
+      "allow_peer": true,
+      "allow_tester": true
+    },
+    {
+      "name": "Amersfoort",
+      "peers": 1,
+      "FTIR": 1,
+      "teams_per_date": {},
+      "teams_per_day": {
+        "ma": 0,
+        "di": 0,
+        "wo": 0,
+        "do": 1,
+        "vr": 0,
+        "za": 0,
+        "zo": 0
+      },
+      "allow_peer": true,
+      "allow_tester": true
+    },
+    {
+      "name": "UitslagenLijn",
+      "peers": 0,
+      "FTIR": 2,
+      "teams_per_date": {},
+      "teams_per_day": {
+        "ma": 0,
+        "di": 0,
+        "wo": 0,
+        "do": 0,
+        "vr": 0,
+        "za": 0,
+        "zo": 0
+      },
+      "allow_peer": false,
+      "allow_tester": true
     }
   ]
 }

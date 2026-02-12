@@ -1,0 +1,48 @@
+location,day,date,weeknummer,team,testers1,testers2
+Utrecht,do,2026-04-02,14,0,Oek,Sam
+Amersfoort,do,2026-04-02,14,0,Naomi,Rene 't hart
+Utrecht,di,2026-04-07,15,0,Sarah Hilkemeijer,Peter
+Utrecht,do,2026-04-09,15,0,Rosa,Sam
+Amersfoort,do,2026-04-09,15,0,Milan de Roode,Backup Tester 2
+UitslagenLijn,do,2026-04-09,15,0,Tomas,Sarah G
+UitslagenLijn,do,2026-04-09,15,1,Megan,Lian
+Utrecht,di,2026-04-14,16,0,Sam,Lian
+Utrecht,do,2026-04-16,16,0,Rosa,Noor ten Veen
+Amersfoort,do,2026-04-16,16,0,Naomi,Rene 't hart
+Utrecht,di,2026-04-21,17,0,Sarah Hilkemeijer,Peter
+Utrecht,do,2026-04-23,17,0,Rosa,Rene 't hart
+Amersfoort,do,2026-04-23,17,0,Naomi,Sol
+UitslagenLijn,do,2026-04-23,17,0,Elske,Backup Tester 1
+UitslagenLijn,do,2026-04-23,17,1,Aumer van Reemst,Megan
+Utrecht,di,2026-04-28,18,0,Sarah G,Rene 't hart
+Utrecht,do,2026-04-30,18,0,Tomas,Sam
+Amersfoort,do,2026-04-30,18,0,Milan de Roode,Naomi
+Utrecht,di,2026-05-05,19,0,Rienje,Sarah Hilkemeijer
+Utrecht,do,2026-05-07,19,0,Sam,Aumer van Reemst
+Amersfoort,do,2026-05-07,19,0,Naomi,Rene 't hart
+Utrecht,di,2026-05-12,20,0,Cato van Halem,Sarah G
+Utrecht,do,2026-05-14,20,0,Oek,Sam
+Amersfoort,do,2026-05-14,20,0,Naomi,Rene 't hart
+Utrecht,di,2026-05-19,21,0,Peter,Rene 't hart
+Utrecht,do,2026-05-21,21,0,Milan de Roode,Sarah G
+Amersfoort,do,2026-05-21,21,0,Sam,Naomi
+Utrecht,di,2026-05-26,22,0,Peter,Rene 't hart
+Utrecht,do,2026-05-28,22,0,Noortje Kersten,Rosa
+Amersfoort,do,2026-05-28,22,0,Sam,Lian
+UitslagenLijn,do,2026-05-28,22,0,Tomas,Megan
+UitslagenLijn,do,2026-05-28,22,1,Backup Tester 2,Backup Tester 1
+Utrecht,di,2026-06-02,23,0,Sarah Hilkemeijer,Lian
+Utrecht,do,2026-06-04,23,0,Rosa,Sam
+Amersfoort,do,2026-06-04,23,0,Rene 't hart,Backup Tester 2
+Utrecht,di,2026-06-09,24,0,Sarah G,Noor ten Veen
+Utrecht,do,2026-06-11,24,0,Oek,Cato van Halem
+Amersfoort,do,2026-06-11,24,0,Naomi,Sol
+UitslagenLijn,do,2026-06-11,24,0,Elske,Megan
+UitslagenLijn,do,2026-06-11,24,1,Tomas,Peter
+Utrecht,di,2026-06-16,25,0,Sarah Hilkemeijer,Backup Tester 1
+Utrecht,do,2026-06-18,25,0,Peter,Rene 't hart
+Amersfoort,do,2026-06-18,25,0,Milan de Roode,Naomi
+Utrecht,di,2026-06-23,26,0,Rosa,Sarah Hilkemeijer
+Utrecht,do,2026-06-25,26,0,Noortje Kersten,Aumer van Reemst
+Amersfoort,do,2026-06-25,26,0,Naomi,Rene 't hart
+Utrecht,di,2026-06-30,27,0,Sarah G,Rene 't hart
