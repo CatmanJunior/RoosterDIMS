@@ -365,6 +365,15 @@ def render_generator_page() -> None:
     st.session_state["rooster_name"] = rooster_name
     disabled = not (selected_any and preview_ok)
     verbose = st.checkbox("Verbose output", value=False)
+    allow_partial = st.checkbox(
+        "Partieel genereren",
+        value=False,
+        help=(
+            "Versoepelt de constraints zodat de solver altijd een rooster produceert, "
+            "ook als niet alle shifts volledig bezet kunnen worden. "
+            "Shifts met te weinig testers worden zichtbaar in het rooster en de diagnose."
+        ),
+    )
     if st.button("Genereer rooster (run main.py)", disabled=disabled):
         main_py = root / "src" / "main.py"
         py = _find_windows_python_in_venv(root) or Path(sys.executable)
@@ -398,6 +407,8 @@ def render_generator_page() -> None:
             cmd += ["--use-objectives", *obj_selected]
         if verbose:
             cmd += ["--verbose"]
+        if allow_partial:
+            cmd += ["--allow-partial"]
 
         with st.spinner("Bezig met genereren van rooster..."):
             result = subprocess.run(
@@ -434,10 +445,25 @@ def render_generator_page() -> None:
             },
         }
 
-        if result.returncode == 0:
+        # Detect whether the solver reported no solution (main.py exits 0 but prints the message)
+        no_solution = "Geen oplossing gevonden" in (result.stdout or "")
+
+        if result.returncode == 0 and not no_solution:
             st.success("Rooster gegenereerd. Ga naar de tab 'Rooster' om het resultaat te bekijken.")
         else:
-            st.error(f"Fout bij uitvoeren (code {result.returncode}). Zie output hierboven.")
+            # Detect whether the solver reported no solution vs. a Python crash
+            if no_solution:
+                st.error(
+                    "**Geen oplossing gevonden.** De solver kon niet alle shifts invullen met de "
+                    "beschikbare testers en huidige constraints. Bekijk de diagnose voor details."
+                )
+            else:
+                st.error(f"Fout bij uitvoeren (code {result.returncode}). Zie output hieronder.")
+            col_btn, _ = st.columns([1, 3])
+            with col_btn:
+                if st.button("📊 Bekijk diagnose rapport"):
+                    st.session_state["page_nav"] = "Diagnose"
+                    st.rerun()
 
         st.write("Uitvoer van main.py:")
         st.write(f"Python: {py}")

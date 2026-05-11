@@ -60,20 +60,29 @@ def add_max_shifts_per_day_constraints(
             )
 
 
-# Constraint 3: Precies 2 testers per shift
+# Constraint 3: Precies 2 testers per shift (of minimaal min_x in partieel modus)
 def add_exactly_x_testers_per_shift_constraints(
-    model, assignment_vars, shift_list, person_list, x: int = 2
+    model, assignment_vars, shift_list, person_list, x: int = 2, min_x: int | None = None
 ):
     """Enforce the exact number of testers per shift.
+
+    When min_x is provided (partial mode) the constraint becomes:
+        min_x <= testers <= x
+    instead of == x, allowing under-staffed shifts rather than infeasibility.
     """
     for s_idx, shift in enumerate(shift_list):
-        model.Add(
-            sum(assignment_vars[(t_idx, s_idx)] for t_idx in range(len(person_list)))
-            == x
-        )
-        _log(
-            f"Adding constraint for exactly {x} testers on shift {s_idx} (loc={shift['location']})"
-        )
+        total = sum(assignment_vars[(t_idx, s_idx)] for t_idx in range(len(person_list)))
+        if min_x is not None:
+            model.Add(total <= x)
+            model.Add(total >= min_x)
+            _log(
+                f"Adding constraint for {min_x}–{x} testers on shift {s_idx} (loc={shift['location']})"
+            )
+        else:
+            model.Add(total == x)
+            _log(
+                f"Adding constraint for exactly {x} testers on shift {s_idx} (loc={shift['location']})"
+            )
 
 
 # Constraint 4: Minimaal 1 eerste tester per shift

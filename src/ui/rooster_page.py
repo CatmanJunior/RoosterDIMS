@@ -9,18 +9,34 @@ from config import get_data_sources_config
 def _read_diagnostics() -> pd.DataFrame:
     """Read optional diagnostics about unplannable days from CSV.
 
-    The CLI can write a small diagnostics file when no solution is found;
-    if present, we show it here to explain why dagen niet planbaar zijn.
+    Checks the year/quarter-specific path first (mirrors main.py's output path),
+    then falls back to the legacy config key.
     """
     ds_conf = get_data_sources_config()
+    import os
+    import streamlit as _st
+
+    roster_folder = ds_conf.get("roster_folder", "data/generated/roosters")
+    year = _st.session_state.get("global_year")
+    quarter = _st.session_state.get("global_quarter")
+
+    # Primary: year/quarter-specific path (matches main.py _resolve_roster_base_dir)
+    if year and quarter:
+        from pathlib import Path as _Path
+        root = _Path(__file__).resolve().parents[2]
+        folder = _Path(roster_folder) if _Path(roster_folder).is_absolute() else root / roster_folder
+        candidate = folder / str(year) / str(quarter) / "rooster_diagnostics.csv"
+        try:
+            return pd.read_csv(candidate)
+        except FileNotFoundError:
+            pass
+
+    # Fallback: explicit config key or next to rooster.csv
     diag_path = ds_conf.get("diagnostics_csv", None)
     if not diag_path:
-        # Default next to rooster.csv
         roster_path = ds_conf.get("rooster_csv", "rooster.csv")
-        import os
-
-        root, base = os.path.split(roster_path)
-        diag_path = os.path.join(root, "rooster_diagnostics.csv")
+        root_part, _ = os.path.split(roster_path)
+        diag_path = os.path.join(root_part, "rooster_diagnostics.csv")
     try:
         return pd.read_csv(diag_path)
     except FileNotFoundError:

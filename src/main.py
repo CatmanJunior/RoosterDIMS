@@ -111,6 +111,16 @@ parser.add_argument(
     dest="rooster_name",
     help="Optionele naam voor het rooster (wordt gebruikt in bestandsnaam)",
 )
+parser.add_argument(
+    "--allow-partial",
+    dest="allow_partial",
+    action="store_true",
+    default=False,
+    help=(
+        "Partieel modus: versoepel exact_testers naar 0-2 per shift en sla min_first over "
+        "zodat de solver altijd een (deels leeg) rooster produceert."
+    ),
+)
 args, _ = parser.parse_known_args(sys.argv[1:])
 
 dept_defaults = get_department_defaults(getattr(args, "department", None))
@@ -149,7 +159,15 @@ MASKED_WEIGHTS = {
     "location_fairness": WEIGHTS.get("location_fairness", 0)
     if "location_fairness" in _SEL_OBJECTIVES
     else 0,
+    "coverage": WEIGHTS.get("coverage", 100)
+    if "coverage" in _SEL_OBJECTIVES
+    else 0,
 }
+
+# When running in partial mode, ensure the coverage objective is active
+# (even if not in --use-objectives) so the solver fills as many slots as possible.
+if getattr(args, "allow_partial", False) and MASKED_WEIGHTS["coverage"] == 0:
+    MASKED_WEIGHTS["coverage"] = WEIGHTS.get("coverage", 100)
 
 model = cp_model.CpModel()
 csv_file = args.csv_file
@@ -189,11 +207,15 @@ def add_constraints(model, assignment_vars):
         )
 
     if "exact_testers" in args.use_constraints:
+        # In partial mode allow 0–2 testers per shift so the solver never goes infeasible
+        # due to too few available people.  Coverage penalty encourages filling slots.
+        partial_min = 0 if getattr(args, "allow_partial", False) else None
         add_exactly_x_testers_per_shift_constraints(
-            model, assignment_vars, shift_list, person_list, x=2
+            model, assignment_vars, shift_list, person_list, x=2, min_x=partial_min
         )
 
-    if "min_first" in args.use_constraints:
+    # min_first is a hard lower-bound; skip it in partial mode to avoid infeasibility
+    if "min_first" in args.use_constraints and not getattr(args, "allow_partial", False):
         add_minimum_first_tester_per_shift_constraints(
             model, assignment_vars, person_list, shift_list
         )
@@ -306,7 +328,11 @@ def diagnose_unplanned_days(solver, status, assignment_vars):
         role = p.get("role")
         availability = p.get("availability", {})
         pref_locs = p.get("pref_loc_flags", {})
-        for date, is_avail in availability.items():
+        # Iterate over all shift dates (not just CSV columns) to match the constraint
+        # behaviour: availability.get(date, True) defaults to available when a date
+        # is present in the shift plan but absent from the CSV availability columns.
+        for date in date_loc_required.keys():
+            is_avail = availability.get(date, True)
             if not is_avail:
                 continue
             # Count available per location where preference flag > 0

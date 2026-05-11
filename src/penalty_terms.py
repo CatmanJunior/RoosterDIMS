@@ -228,6 +228,32 @@ def build_fairness_span_vars(
     return max_shifts, min_shifts
 
 
+def build_coverage_deficit_vars(
+    model: cp_model.CpModel,
+    assignment_vars,
+    shift_list: List[Dict[str, Any]],
+    num_people: int,
+    target_per_shift: int = 2,
+) -> List:
+    """Build per-shift deficit variables: max(0, target - assigned).
+
+    Used in partial mode to penalise under-staffed shifts so the solver
+    still fills as many slots as possible rather than leaving them empty.
+    """
+    zero = model.NewIntVar(0, 0, "zero_const_cov")
+    deficit_vars = []
+    for s_idx, shift in enumerate(shift_list):
+        total = sum(assignment_vars[(t_idx, s_idx)] for t_idx in range(num_people))
+        assigned_var = model.NewIntVar(0, num_people, f"cov_assigned_s{s_idx}")
+        model.Add(assigned_var == total)
+        diff = model.NewIntVar(-target_per_shift, target_per_shift, f"cov_diff_s{s_idx}")
+        model.Add(diff == target_per_shift - assigned_var)
+        deficit = model.NewIntVar(0, target_per_shift, f"cov_deficit_s{s_idx}")
+        model.AddMaxEquality(deficit, [diff, zero])
+        deficit_vars.append(deficit)
+    return deficit_vars
+
+
 def apply_objective(
     model: cp_model.CpModel,
     assignment_vars,
@@ -246,6 +272,15 @@ def apply_objective(
 
     # location_fairness allows tuning how strongly we prefer spreading location penalties
     loc_fairness_w = weights.get("location_fairness", weights.get("fairness", 0))
+
+    coverage_w = weights.get("coverage", 0)
+    coverage_term = 0
+    if coverage_w:
+        coverage_deficits = build_coverage_deficit_vars(
+            model, assignment_vars, shift_list, len(person_list)
+        )
+        coverage_term = sum(coverage_deficits) * coverage_w
+
     expr = (
         sum(loc_penalties) * weights.get("location", 0)
         + (max_shifts - min_shifts) * weights.get("fairness", 0)
@@ -254,5 +289,6 @@ def apply_objective(
         + sum(avg_costs)  # already scaled by monthly_avg weight
         + sum(weekly_multi) * weights.get("weekly_multi", 0)
         + sum(min_av_missing) * weights.get("monthly_min_avail", 0)
+        + coverage_term
     )
     model.Minimize(expr)

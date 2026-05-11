@@ -24,6 +24,7 @@ def main() -> None:
     from ui.testers_page import render_testers_page  # type: ignore
     from ui.penalties_page import render_penalties_page  # type: ignore
     from ui.shifts_page import render_shifts_page  # type: ignore
+    from ui.diagnose_page import render_diagnose_page  # type: ignore
     from config import (  # type: ignore
         get_data_sources_config,
         get_departments_config,
@@ -127,7 +128,8 @@ def main() -> None:
     st.sidebar.markdown("---")
     page = st.sidebar.radio(
         "Paginas:",
-        ["Generator", "Shiftplan", "Rooster", "Testers", "Penalties"],
+        ["Generator", "Shiftplan", "Rooster", "Testers", "Penalties", "Diagnose"],
+        key="page_nav",
     )
 
     if page == "Rooster":
@@ -144,6 +146,9 @@ def main() -> None:
 
     elif page == "Shiftplan":
         render_shifts_page()
+
+    elif page == "Diagnose":
+        render_diagnose_page()
 
 
 if __name__ == "__main__":
