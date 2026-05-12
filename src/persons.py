@@ -9,6 +9,11 @@ def is_date_field(keyname):
     return bool(re.match(r"^(?:0?[1-9]|[12][0-9]|3[01])-(?:0?[1-9]|1[0-2])$", keyname))
 
 
+def is_location_only_date_field(keyname):
+    # Matches date fields with a trailing 'u' meaning location-2-only restriction, e.g. "11-7u", "9-4u"
+    return bool(re.match(r"^(?:0?[1-9]|[12][0-9]|3[01])-(?:0?[1-9]|1[0-2])u$", keyname))
+
+
 def csv_to_personlist(csv_path, year=2026, locations_config_path: str | None = None):
     person_list = []
     # Auto-detect delimiter (comma, semicolon, or tab) and strip BOM if present
@@ -64,17 +69,35 @@ def csv_to_personlist(csv_path, year=2026, locations_config_path: str | None = N
                     pref_loc_flags[loc_name] = 2
 
             beschikbaar = {}
+            date_loc2_only: dict[str, str] = {}
+            date_loc2_banned: dict[str, str] = {}
+            loc2_name: str | None = locations[2] if len(locations) > 2 else None
             month_max = _safe_int(row.get("Month_max"), 0)
             month_avg = _safe_int(row.get("Month_avg"), 0)
 
             for key in row.keys():
-                if is_date_field(str(key)):
+                key_str = str(key)
+                if is_date_field(key_str):
                     try:
-                        date_obj = datetime.strptime(str(key).strip(), "%d-%m")
+                        date_obj = datetime.strptime(key_str.strip(), "%d-%m")
                         date_str = f"{year}-{date_obj.month:02d}-{date_obj.day:02d}"
                     except ValueError:
-                        date_str = str(key).strip()
+                        date_str = key_str.strip()
                     beschikbaar[date_str] = _to_bool(row.get(key))
+                elif is_location_only_date_field(key_str) and loc2_name:
+                    # Strip trailing 'u' and parse the base date
+                    base = key_str.strip().rstrip("u")
+                    try:
+                        date_obj = datetime.strptime(base, "%d-%m")
+                        date_str = f"{year}-{date_obj.month:02d}-{date_obj.day:02d}"
+                    except ValueError:
+                        date_str = base
+                    if _to_bool(row.get(key)):
+                        # TRUE: available only at location 2 on this date
+                        date_loc2_only[date_str] = loc2_name
+                    else:
+                        # FALSE: available everywhere except location 2 on this date
+                        date_loc2_banned[date_str] = loc2_name
 
             person = {
                 "name": naam,
@@ -82,6 +105,8 @@ def csv_to_personlist(csv_path, year=2026, locations_config_path: str | None = N
                 "availability": beschikbaar,
                 "pref_location": pref_loc,
                 "pref_loc_flags": pref_loc_flags,
+                "date_loc2_only": date_loc2_only,
+                "date_loc2_banned": date_loc2_banned,
                 "month_max": int(month_max),
                 "month_avg": int(month_avg),
             }

@@ -40,6 +40,20 @@ def add_availability_constraints(model, assignment_vars, person_list, shift_list
                 _log(
                     f"Adding hard location ban for {tester['name']} at {shift['location']} on {shift['date']}"
                 )
+            # u-suffix date restriction: available only at location 2 on this date
+            date_loc2_only = tester.get("date_loc2_only", {})
+            if shift["date"] in date_loc2_only and shift["location"] != date_loc2_only[shift["date"]]:
+                model.Add(assignment_vars[(t_idx, s_idx)] == 0)
+                _log(
+                    f"Blocking {tester['name']} at {shift['location']} on {shift['date']} (only available at {date_loc2_only[shift['date']]})"
+                )
+            # u-suffix date restriction: banned from location 2 on this date
+            date_loc2_banned = tester.get("date_loc2_banned", {})
+            if shift["date"] in date_loc2_banned and shift["location"] == date_loc2_banned[shift["date"]]:
+                model.Add(assignment_vars[(t_idx, s_idx)] == 0)
+                _log(
+                    f"Blocking {tester['name']} at {shift['location']} on {shift['date']} (banned from location 2)"
+                )
 
 
 # Constraint 2: Maximaal 1 shift per dag per persoon
