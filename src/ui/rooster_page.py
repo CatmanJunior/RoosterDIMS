@@ -3,7 +3,8 @@ import re
 from pathlib import Path
 import pandas as pd
 import streamlit as st
-from config import get_data_sources_config
+from config import get_data_sources_config, get_departments_config, get_department_defaults
+from person_list import csv_to_personlist
 
 
 def _read_diagnostics() -> pd.DataFrame:
@@ -152,8 +153,32 @@ def render_rooster_page() -> None:
     else:
         testers_series = pd.Series([[] for _ in range(len(df))])
 
+    # Build name → role suffix map from persons CSV
+    _role_map: dict[str, str] = {}
+    try:
+        _selected_dept = st.session_state.get("global_department")
+        _dept_defaults = get_department_defaults(_selected_dept)
+        _dept_ds = _dept_defaults.get("data_sources", {}) if isinstance(_dept_defaults, dict) else {}
+        _merged_ds = {**ds_conf, **_dept_ds}
+        _csv_rel = _merged_ds.get("default_persons_csv", "")
+        if _csv_rel:
+            _csv_path = root / _csv_rel if not Path(_csv_rel).is_absolute() else Path(_csv_rel)
+            _persons = csv_to_personlist(
+                str(_csv_path),
+                locations_config_path=_dept_defaults.get("locations_config") if isinstance(_dept_defaults, dict) else None,
+            )
+            for _p in _persons:
+                _role_map[_p.name] = "(T)" if str(getattr(_p, 'role', '')).endswith('TESTER') else "(P)"
+    except Exception:
+        pass
+
+    def _with_role(name: str) -> str:
+        if not name or not isinstance(name, str):
+            return name
+        suffix = _role_map.get(name.strip())
+        return f"{name} {suffix}" if suffix else name
+
     # 1) Overzicht: aantal shifts per persoon; plus actuele Gem/maand en Max/maand
-    exploded = df.assign(testers_list=testers_series).explode("testers_list")
     exploded = exploded.dropna(subset=["testers_list"])  # filter leeg
     exploded["testers_list"] = exploded["testers_list"].astype(str)
     exploded = exploded[exploded["testers_list"].str.len() > 0]
@@ -210,6 +235,7 @@ def render_rooster_page() -> None:
             shift_counts = shift_counts.sort_values(
                 by=sort_by, ascending=[False] * len(sort_by)
             ).reset_index(drop=True)
+        shift_counts["Persoon"] = shift_counts["Persoon"].apply(_with_role)
 
     # 2) Overzicht: penalties per persoon (gewogen som indien beschikbaar)
     penalties_per_person = pd.DataFrame()
@@ -261,6 +287,9 @@ def render_rooster_page() -> None:
         # Toon lege tabel als penalties nog niet bestaan
         penalties_per_person = pd.DataFrame(columns=["Persoon"])
 
+    if "Persoon" in penalties_per_person.columns:
+        penalties_per_person["Persoon"] = penalties_per_person["Persoon"].apply(_with_role)
+
     # Toon de samenvattingstabellen naast elkaar (horizontale grid)
     col1, col2 = st.columns(2)
     with col1:
@@ -295,7 +324,13 @@ def render_rooster_page() -> None:
         drop=True
     )
 
-    # Simpele tabelweergave
+    # Apply role suffixes to tester name columns
+    _tester_display_cols = tester_cols if tester_cols else [f"tester_{i + 1}" for i in range(max_testers)]
+    for _tc in _tester_display_cols:
+        if _tc in df_display.columns:
+            df_display[_tc] = df_display[_tc].apply(
+                lambda v: _with_role(str(v)) if pd.notna(v) and str(v).strip() else v
+            )
     if tester_cols:
         display_cols = ["date", "day", "location", "team"] + tester_cols
     else:
