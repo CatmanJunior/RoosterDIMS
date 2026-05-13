@@ -67,14 +67,23 @@ def add_exactly_x_testers_per_shift_constraints(
 
 
 # Constraint 4: Minimaal 1 eerste tester per shift
-def add_minimum_first_tester_per_shift_constraints(ctx: SolverContext) -> None:
+def add_minimum_first_tester_per_shift_constraints(ctx: SolverContext, partial: bool = False) -> None:
     model, av = ctx.model, ctx.assignment_vars
     tester_idxs = [p.idx for p in ctx.persons.filter_role(Role.TESTER)]
+    all_idxs = [p.idx for p in ctx.persons]
     for shift in ctx.shifts:
         if not shift.allow_tester:
             continue
-        model.Add(sum(av[(t_idx, shift.idx)] for t_idx in tester_idxs) >= 1)
-        _log(f"Adding constraint for at least 1 first tester on shift {shift.idx}")
+        n_testers = sum(av[(t_idx, shift.idx)] for t_idx in tester_idxs)
+        if partial:
+            # If any person is assigned, at least one must be a tester.
+            # total <= 2 * n_testers: when total=1 or 2, n_testers must be >= 1.
+            # When total=0 the inequality is trivially satisfied (0 <= 0).
+            total = sum(av[(p_idx, shift.idx)] for p_idx in all_idxs)
+            model.Add(total <= 2 * n_testers)
+        else:
+            model.Add(n_testers >= 1)
+        _log(f"Adding min_first constraint (partial={partial}) for shift {shift.idx}")
 
 
 # Constraint: Maximaal x shifts per week per persoon
@@ -143,8 +152,8 @@ def add_constraints(ctx: SolverContext, use_constraints: set[str], allow_partial
 
     if "exact_testers" in active:
         add_exactly_x_testers_per_shift_constraints(ctx, x=2, min_x=0 if partial else None)
-    if "min_first" in active and not partial:
-        add_minimum_first_tester_per_shift_constraints(ctx)
+    if "min_first" in active:
+        add_minimum_first_tester_per_shift_constraints(ctx, partial=partial)
     if "max_per_week" in active:
         add_max_x_shifts_per_week_constraints(ctx, max_shifts_per_week=2)
     if "single_first" in active:

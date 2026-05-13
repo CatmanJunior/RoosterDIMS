@@ -313,10 +313,11 @@ def render_generator_page() -> None:
             st.session_state[f"weight_{key}"] = int(dept_weights.get(key, val) or 0)
 
     applied_key = st.session_state.get("_dept_applied")
-    if dept_names and selected_department and applied_key != selected_department:
+    _cons_missing = any(f"cons_{k}" not in st.session_state for k in default_constraints)
+    if dept_names and selected_department and (applied_key != selected_department or _cons_missing):
         _apply_department_defaults(dept_defaults or {})
         st.session_state["_dept_applied"] = selected_department
-    elif not dept_names and applied_key != "__default__":
+    elif not dept_names and (applied_key != "__default__" or _cons_missing):
         _apply_department_defaults({})
         st.session_state["_dept_applied"] = "__default__"
 
