@@ -160,15 +160,25 @@ def render_rooster_page() -> None:
         _dept_defaults = get_department_defaults(_selected_dept)
         _dept_ds = _dept_defaults.get("data_sources", {}) if isinstance(_dept_defaults, dict) else {}
         _merged_ds = {**ds_conf, **_dept_ds}
+        _locations_cfg = _dept_defaults.get("locations_config") if isinstance(_dept_defaults, dict) else None
+
+        # Prefer most-recently uploaded file in prefs dir, fall back to default CSV
+        _pref_dir_rel = _merged_ds.get("preferences_dir", "data/preferences")
+        _prefs_dir = root / _pref_dir_rel
+        _uploaded = sorted(_prefs_dir.glob("uploaded_*.csv")) if _prefs_dir.exists() else []
         _csv_rel = _merged_ds.get("default_persons_csv", "")
-        if _csv_rel:
+        if _uploaded:
+            _csv_path = _uploaded[-1]  # most recent alphabetically
+        elif _csv_rel:
             _csv_path = root / _csv_rel if not Path(_csv_rel).is_absolute() else Path(_csv_rel)
-            _persons = csv_to_personlist(
-                str(_csv_path),
-                locations_config_path=_dept_defaults.get("locations_config") if isinstance(_dept_defaults, dict) else None,
-            )
+        else:
+            _csv_path = None
+
+        if _csv_path and _csv_path.exists():
+            _persons = csv_to_personlist(str(_csv_path), locations_config_path=_locations_cfg)
             for _p in _persons:
-                _role_map[_p.name] = "(T)" if str(getattr(_p, 'role', '')).endswith('TESTER') else "(P)"
+                # Role.TESTER has value "T"; compare by value for version safety
+                _role_map[_p.name] = "(T)" if getattr(_p.role, "value", _p.role) == "T" else "(P)"
     except Exception:
         pass
 
