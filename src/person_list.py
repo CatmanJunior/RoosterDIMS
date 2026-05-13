@@ -1,16 +1,15 @@
 import csv
-from datetime import datetime
 import re
 from config import get_locations_config
 from models import Person, PersonList, Role
 
 
 def is_date_field(keyname: str) -> bool:
-    return bool(re.match(r"^(?:0[1-9]|[12][0-9]|3[01])-(?:0[1-9]|1[0-2])$", keyname))
+    return bool(re.match(r"^(?:0?[1-9]|[12][0-9]|3[01])-(?:0?[1-9]|1[0-2])$", keyname.strip()))
 
 
 def is_location_only_date_field(keyname: str) -> bool:
-    return bool(re.match(r"^(?:0[1-9]|[12][0-9]|3[01])-(?:0[1-9]|1[0-2])u$", keyname))
+    return bool(re.match(r"^(?:0?[1-9]|[12][0-9]|3[01])-(?:0?[1-9]|1[0-2])u$", keyname.strip()))
 
 
 def csv_to_personlist(
@@ -71,20 +70,20 @@ def csv_to_personlist(
             month_avg = _safe_int(row.get("Month_avg"), 0)
 
             for key in row.keys():
-                key_str = str(key)
+                key_str = str(key).strip()
                 if is_date_field(key_str):
                     try:
-                        date_obj = datetime.strptime(key_str.strip(), "%d-%m")
-                        date_str = f"{year}-{date_obj.month:02d}-{date_obj.day:02d}"
+                        parts = key_str.split("-")
+                        date_str = f"{year}-{int(parts[1]):02d}-{int(parts[0]):02d}"
                     except ValueError:
                         date_str = key_str.strip()
                     beschikbaar[date_str] = _to_bool(row.get(key))
                 elif is_location_only_date_field(key_str) and loc2_name:
-                    base = key_str.strip().rstrip("u")
+                    base = key_str.rstrip("u")
                     try:
-                        date_obj = datetime.strptime(base, "%d-%m")
-                        date_str = f"{year}-{date_obj.month:02d}-{date_obj.day:02d}"
-                    except ValueError:
+                        parts = base.split("-")
+                        date_str = f"{year}-{int(parts[1]):02d}-{int(parts[0]):02d}"
+                    except (ValueError, IndexError):
                         date_str = base
                     if _to_bool(row.get(key)):
                         date_loc2_only[date_str] = loc2_name
