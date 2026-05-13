@@ -179,6 +179,7 @@ def render_rooster_page() -> None:
         return f"{name} {suffix}" if suffix else name
 
     # 1) Overzicht: aantal shifts per persoon; plus actuele Gem/maand en Max/maand
+    exploded = df.assign(testers_list=testers_series).explode("testers_list")
     exploded = exploded.dropna(subset=["testers_list"])  # filter leeg
     exploded["testers_list"] = exploded["testers_list"].astype(str)
     exploded = exploded[exploded["testers_list"].str.len() > 0]
