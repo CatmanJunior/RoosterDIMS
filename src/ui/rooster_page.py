@@ -126,11 +126,16 @@ def render_rooster_page() -> None:
 
         tester_cols = sorted(tester_cols, key=_tester_sort_key)
     if "testers" in df.columns:
-        testers_series = df["testers"].apply(
-            lambda x: ast.literal_eval(x)
-            if isinstance(x, str)
-            else (x if isinstance(x, (list, tuple)) else [])
-        )
+        def _parse_testers_cell(x):
+            if isinstance(x, (list, tuple)):
+                return x
+            if isinstance(x, str):
+                try:
+                    return ast.literal_eval(x)
+                except (ValueError, SyntaxError):
+                    return []
+            return []
+        testers_series = df["testers"].apply(_parse_testers_cell)
     elif tester_cols:
         def _row_to_testers(row: pd.Series) -> list[str]:
             vals = []

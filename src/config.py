@@ -25,7 +25,7 @@ def get_data_sources_config(path: str | None = None) -> Dict[str, Any]:
 def get_departments_config() -> Dict[str, Any]:
     try:
         return load_json("config/departments.json")
-    except FileNotFoundError:
+    except (FileNotFoundError, json.JSONDecodeError):
         return {"departments": {}}
 
 

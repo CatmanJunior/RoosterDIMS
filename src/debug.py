@@ -1,64 +1,41 @@
-def print_available_people_for_shifts(shift_list, person_list):
-    for s_idx, shift in enumerate(shift_list):
-        beschikbaar = [
-            tester["name"]
-            for tester in person_list
-            if tester["availability"].get(shift["date"], False)
-        ]
-        print(f"Shift {shift} → Beschikbare mensen: {beschikbaar}")
+from models import Role, SolverContext
 
-    for s_idx, shift in enumerate(shift_list):
-        beschikbare_eerste = [
-            t["name"]
-            for t in person_list
-            if t["role"] == "T" and t["availability"].get(shift["date"], False)
-        ]
-        if len(beschikbare_eerste) < 1:
+
+def print_available_people_for_shifts(ctx: SolverContext):
+    for shift in ctx.shifts:
+        beschikbaar = [p.name for p in ctx.persons if p.is_available(shift.date)]
+        print(f"Shift {shift} -> Beschikbare mensen: {beschikbaar}")
+
+    for shift in ctx.shifts:
+        eerste = [p.name for p in ctx.persons if p.role == Role.TESTER and p.is_available(shift.date)]
+        if len(eerste) < 1:
             print(f" Geen eerste tester beschikbaar op shift {shift}")
+        print(f"Shift {shift} -> Beschikbare eerste testers: {eerste}")
 
-        print(f"Shift {shift} → Beschikbare eerste testers: {beschikbare_eerste}")
 
-
-def print_shift_schedule(assignment_vars, solver, shift_list, person_list):
-    print("🗓️ -Rooster:")
-
-    # groepeer eerst shifts per dag
-    for date in set(shift["date"] for shift in shift_list):
-        print(f"\n📅 {date}")
-        for shift in shift_list:
-            if shift["date"] != date:
+def print_shift_schedule(ctx: SolverContext, solver):
+    print("Rooster:")
+    for date in set(s.date for s in ctx.shifts):
+        print(f"\n{date}")
+        for shift in ctx.shifts:
+            if shift.date != date:
                 continue
-
-            s_idx = shift_list.index(shift)
-            ingedeelden = [
-                person_list[t_idx]["name"]
-                for t_idx in range(len(person_list))
-                if solver.Value(assignment_vars[(t_idx, s_idx)]) == 1
+            assigned = [
+                person.name
+                for person in ctx.persons
+                if solver.Value(ctx.assignment_vars[(person.idx, shift.idx)]) == 1
             ]
-
-            team = f"team {shift['team']}"
-            locatie = shift["location"]
-            namen = ", ".join(ingedeelden)
-            print(f"  📍 {locatie} - {team}: {namen}")
+            print(f"  {shift.location} - team {shift.team}: {', '.join(assigned)}")
 
 
-# Print het aantal shifts per persoon
-def print_shift_count_per_person(assignment_vars, solver, shift_list, person_list):
-    print("\n👥 -Aantal shifts per persoon:")
-    for tester in person_list:
-        print(f"👤 {tester['name']} ({tester['role']}) - Aantal shifts:")
-        aantal_shifts = 0
-        for s_idx in range(len(shift_list)):
-            for t_idx in range(len(person_list)):
-                if person_list[t_idx]["name"] == tester["name"]:
-                    if solver.Value(assignment_vars[(t_idx, s_idx)]) == 1:
-                        aantal_shifts += 1
-        print(f"    {aantal_shifts} shifts")
+def print_shift_count_per_person(ctx: SolverContext, solver):
+    print("\nAantal shifts per persoon:")
+    for person in ctx.persons:
+        count = sum(solver.Value(ctx.assignment_vars[(person.idx, shift.idx)]) for shift in ctx.shifts)
+        print(f"{person.name} ({person.role.value}): {count} shifts")
 
 
-def print_filled_shifts(filled_shifts):
-    print("🗓️ -Rooster:")
-    for shift in filled_shifts:
-        print(
-            f"📍 {shift.location} - {shift.day} ({shift.date}) - Team {shift.team}: {', '.join(shift.testers)}"
-        )
+def print_filled_shifts(shifts):
+    print("Rooster:")
+    for shift in shifts:
+        print(f"{shift.location} - {shift.day} ({shift.date}) - Team {shift.team}: {', '.join(shift.testers)}")

@@ -49,7 +49,9 @@
         "location",
         "fairness",
         "monthly",
-        "monthly_avg"
+        "monthly_avg",
+        "weekly_multi",
+        "monthly_min_avail"
       ],
       "weights": {
         "location": 2,

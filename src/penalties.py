@@ -1,286 +1,137 @@
 import csv
 from collections import defaultdict
-from datetime import datetime
 from typing import Any, Dict, List, Tuple
 
-# Row shape for penalties export
-# Common fields: component, person, units, weighted, extra info by component
+from models import PenaltyRow, SolverContext
+from roster_utils import group_shifts_by_month, group_shifts_by_iso_week, get_available_months
 
 
 def _assigned(solver, var) -> int:
     return int(solver.Value(var) == 1)
 
 
-def compute_shift_counts(
-    assignment_vars, solver, num_people: int, num_shifts: int
-) -> List[int]:
-    counts = [
-        sum(_assigned(solver, assignment_vars[(t, s)]) for s in range(num_shifts))
-        for t in range(num_people)
-    ]
-    return counts
-
-
-def compute_location_penalty_rows(
-    assignment_vars,
-    solver,
-    person_list: List[Dict[str, Any]],
-    shift_list: List[Dict[str, Any]],
-    weight: int,
-) -> List[Dict[str, Any]]:
-    rows: List[Dict[str, Any]] = []
-    for t_idx, tester in enumerate(person_list):
-        for s_idx, shift in enumerate(shift_list):
-            assigned = _assigned(solver, assignment_vars[(t_idx, s_idx)])
-            if not assigned:
+def compute_location_penalty_rows(ctx: SolverContext, solver, weight: int) -> List[PenaltyRow]:
+    rows: List[PenaltyRow] = []
+    for person in ctx.persons:
+        for shift in ctx.shifts:
+            if not _assigned(solver, ctx.assignment_vars[(person.idx, shift.idx)]):
                 continue
-            flags = tester.get("pref_loc_flags", {})
-            if flags:
-                flag = flags.get(shift["location"], 2)
-                # 0: hard banned (should not occur if constraints applied), 1: penalize, 2: no penalty
-                if flag == 1:
-                    rows.append(
-                        {
-                            "component": "location",
-                            "person": tester["name"],
-                            "date": shift["date"],
-                            "day": shift["day"],
-                            "location": shift["location"],
-                            "team": shift["team"],
-                            "units": 1,
-                            "weighted": weight,
-                        }
-                    )
-            else:
-                # Legacy behavior: penalize when not on single preferred location
-                if shift["location"] != tester.get("pref_location"):
-                    rows.append(
-                        {
-                            "component": "location",
-                            "person": tester["name"],
-                            "date": shift["date"],
-                            "day": shift["day"],
-                            "location": shift["location"],
-                            "team": shift["team"],
-                            "units": 1,
-                            "weighted": weight,
-                        }
-                    )
+            if person.loc_flag(shift.location) == 1:
+                rows.append(PenaltyRow(
+                    component="location", person=person.name, units=1, weighted=weight,
+                    extra={"date": shift.date, "day": shift.day, "location": shift.location, "team": shift.team},
+                ))
     return rows
 
 
-def compute_monthly_min_avail_rows(
-    assignment_vars,
-    solver,
-    person_list: List[Dict[str, Any]],
-    shift_list: List[Dict[str, Any]],
-    weight: int,
-) -> List[Dict[str, Any]]:
-    """Rows for: if a person was available in a month, but assigned 0 shifts in that month => 1 unit penalty."""
-    month_to_shifts: Dict[int, List[int]] = defaultdict(list)
-    for s_idx, shift in enumerate(shift_list):
-        m = datetime.strptime(shift["date"], "%Y-%m-%d").month
-        month_to_shifts[m].append(s_idx)
-
-    rows: List[Dict[str, Any]] = []
-    for t_idx, tester in enumerate(person_list):
-        avail_map = tester.get("availability", {}) or {}
-        months_available = set()
-        for dstr, ok in avail_map.items():
-            try:
-                if ok:
-                    m = datetime.strptime(dstr, "%Y-%m-%d").month
-                    months_available.add(m)
-            except Exception:
-                continue
+def compute_monthly_min_avail_rows(ctx: SolverContext, solver, weight: int) -> List[PenaltyRow]:
+    month_to_shifts = group_shifts_by_month(ctx.shifts)
+    rows: List[PenaltyRow] = []
+    for person in ctx.persons:
+        months_available = get_available_months(person, ctx.shifts)
         for m, s_indices in month_to_shifts.items():
             if m not in months_available:
                 continue
-            assigned = sum(
-                _assigned(solver, assignment_vars[(t_idx, s)]) for s in s_indices
-            )
+            assigned = sum(_assigned(solver, ctx.assignment_vars[(person.idx, s)]) for s in s_indices)
             if assigned == 0:
-                rows.append(
-                    {
-                        "component": "monthly_min_avail",
-                        "person": tester["name"],
-                        "month": m,
-                        "assigned_in_month": assigned,
-                        "units": 1,
-                        "weighted": weight,
-                    }
-                )
+                rows.append(PenaltyRow(
+                    component="monthly_min_avail", person=person.name, units=1, weighted=weight,
+                    extra={"month": m, "assigned_in_month": assigned},
+                ))
     return rows
 
 
-def compute_monthly_excess_rows(
-    assignment_vars,
-    solver,
-    person_list: List[Dict[str, Any]],
-    shift_list: List[Dict[str, Any]],
-    weight: int,
-) -> List[Dict[str, Any]]:
-    # Group shifts by month index 1..12
-    month_to_shifts: Dict[int, List[int]] = defaultdict(list)
-    for s_idx, shift in enumerate(shift_list):
-        m = datetime.strptime(shift["date"], "%Y-%m-%d").month
-        month_to_shifts[m].append(s_idx)
-
-    rows: List[Dict[str, Any]] = []
-    for t_idx, tester in enumerate(person_list):
-        cap = int(tester.get("month_max", 0))
+def compute_monthly_excess_rows(ctx: SolverContext, solver, weight: int) -> List[PenaltyRow]:
+    month_to_shifts = group_shifts_by_month(ctx.shifts)
+    rows: List[PenaltyRow] = []
+    for person in ctx.persons:
+        cap = person.month_max
         for m, s_indices in month_to_shifts.items():
-            assigned = sum(
-                _assigned(solver, assignment_vars[(t_idx, s)]) for s in s_indices
-            )
+            assigned = sum(_assigned(solver, ctx.assignment_vars[(person.idx, s)]) for s in s_indices)
             excess = max(0, assigned - cap)
             if excess > 0:
-                rows.append(
-                    {
-                        "component": "monthly",
-                        "person": tester["name"],
-                        "month": m,
-                        "assigned_in_month": assigned,
-                        "cap": cap,
-                        "units": excess,
-                        "weighted": excess * weight,
-                    }
-                )
+                rows.append(PenaltyRow(
+                    component="monthly", person=person.name, units=excess, weighted=excess * weight,
+                    extra={"month": m, "assigned_in_month": assigned, "cap": cap},
+                ))
     return rows
 
 
-def compute_fairness_rows(
-    assignment_vars,
-    solver,
-    person_list: List[Dict[str, Any]],
-    shift_list: List[Dict[str, Any]],
-    weight: int,
-) -> List[Dict[str, Any]]:
-    counts = compute_shift_counts(
-        assignment_vars, solver, len(person_list), len(shift_list)
-    )
+def compute_fairness_rows(ctx: SolverContext, solver, weight: int) -> List[PenaltyRow]:
+    counts = [sum(_assigned(solver, ctx.assignment_vars[(person.idx, shift.idx)]) for shift in ctx.shifts) for person in ctx.persons]
     span = (max(counts) if counts else 0) - (min(counts) if counts else 0)
-    return [
-        {
-            "component": "fairness",
-            "person": "",
-            "units": span,
-            "weighted": span * weight,
-        }
-    ]
+    return [PenaltyRow(component="fairness", person="", units=span, weighted=span * weight)]
 
 
-def compute_weekly_multi_rows(
-    assignment_vars,
-    solver,
-    person_list: List[Dict[str, Any]],
-    shift_list: List[Dict[str, Any]],
-    weight: int,
-) -> List[Dict[str, Any]]:
-    """Penalize more than 1 assignment in the same ISO week for the same person.
-
-    For each person/week: units = max(0, assigned_in_week - 1)
-    weighted = units * weight
-    """
-    from datetime import datetime as _dt
-
-    # Build week mapping
-    week_to_shifts: Dict[Tuple[int, int], List[int]] = {}
-    for s_idx, shift in enumerate(shift_list):
-        d = _dt.strptime(shift["date"], "%Y-%m-%d")
-        iso_year, iso_week, _ = d.isocalendar()
-        week_to_shifts.setdefault((iso_year, iso_week), []).append(s_idx)
-
-    rows: List[Dict[str, Any]] = []
-    for t_idx, tester in enumerate(person_list):
+def compute_weekly_multi_rows(ctx: SolverContext, solver, weight: int) -> List[PenaltyRow]:
+    week_to_shifts = group_shifts_by_iso_week(ctx.shifts)
+    rows: List[PenaltyRow] = []
+    for person in ctx.persons:
         for (y, w), s_indices in week_to_shifts.items():
-            assigned = sum(
-                _assigned(solver, assignment_vars[(t_idx, s)]) for s in s_indices
-            )
+            assigned = sum(_assigned(solver, ctx.assignment_vars[(person.idx, s)]) for s in s_indices)
             units = max(0, assigned - 1)
             if units > 0:
-                rows.append(
-                    {
-                        "component": "weekly_multi",
-                        "person": tester["name"],
-                        "iso_year": y,
-                        "iso_week": w,
-                        "assigned_in_week": assigned,
-                        "units": units,
-                        "weighted": units * weight,
-                    }
-                )
+                rows.append(PenaltyRow(
+                    component="weekly_multi", person=person.name, units=units, weighted=units * weight,
+                    extra={"iso_year": y, "iso_week": w, "assigned_in_week": assigned},
+                ))
+    return rows
+
+
+def compute_monthly_avg_rows(ctx: SolverContext, solver, weight: int) -> List[PenaltyRow]:
+    from datetime import datetime
+    ym_keys = {
+        (datetime.strptime(s.date, "%Y-%m-%d").year, datetime.strptime(s.date, "%Y-%m-%d").month)
+        for s in ctx.shifts
+    }
+    n_months = len(ym_keys)
+    rows: List[PenaltyRow] = []
+    for person in ctx.persons:
+        target_total = person.month_avg * n_months
+        assigned_total = sum(_assigned(solver, ctx.assignment_vars[(person.idx, shift.idx)]) for shift in ctx.shifts)
+        deficit = max(0, target_total - assigned_total)
+        if deficit > 0:
+            rows.append(PenaltyRow(
+                component="monthly_avg", person=person.name,
+                units=deficit, weighted=weight * deficit * deficit,
+                extra={
+                    "months": n_months, "assigned_total": assigned_total,
+                    "avg_per_month": person.month_avg, "target_total": target_total,
+                },
+            ))
     return rows
 
 
 def export_penalties(
-    filepath: str,
-    assignment_vars,
+    ctx: SolverContext,
     solver,
-    person_list: List[Dict[str, Any]],
-    shift_list: List[Dict[str, Any]],
-    weights: Dict[str, int],
-) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    filepath: str,
+) -> Tuple[List[PenaltyRow], Dict[str, Any]]:
     """Compute a long-form penalty list and write to CSV. Returns (rows, summary)."""
-    all_rows: List[Dict[str, Any]] = []
-
-    loc_rows = compute_location_penalty_rows(
-        assignment_vars, solver, person_list, shift_list, weights.get("location", 1)
+    weights = ctx.weights.as_dict()
+    all_rows: List[PenaltyRow] = (
+        compute_location_penalty_rows(ctx, solver, weights.get("location", 1))
+        + compute_monthly_excess_rows(ctx, solver, weights.get("monthly", 1))
+        + compute_fairness_rows(ctx, solver, weights.get("fairness", 1))
+        + compute_monthly_avg_rows(ctx, solver, weights.get("monthly_avg", 1))
+        + compute_monthly_min_avail_rows(ctx, solver, weights.get("monthly_min_avail", 1))
+        + compute_weekly_multi_rows(ctx, solver, weights.get("weekly_multi", 1))
     )
-    all_rows.extend(loc_rows)
 
-    monthly_rows = compute_monthly_excess_rows(
-        assignment_vars, solver, person_list, shift_list, weights.get("monthly", 1)
-    )
-    all_rows.extend(monthly_rows)
-
-    fairness_rows = compute_fairness_rows(
-        assignment_vars, solver, person_list, shift_list, weights.get("fairness", 1)
-    )
-    all_rows.extend(fairness_rows)
-
-    # Monthly average shortfalls
-    avg_rows = compute_monthly_avg_rows(
-        assignment_vars, solver, person_list, shift_list, weights.get("monthly_avg", 1)
-    )
-    all_rows.extend(avg_rows)
-
-    # Monthly minimum availability penalty rows
-    min_av_rows = compute_monthly_min_avail_rows(
-        assignment_vars,
-        solver,
-        person_list,
-        shift_list,
-        weights.get("monthly_min_avail", 1),
-    )
-    all_rows.extend(min_av_rows)
-
-    # Weekly multi-assignments
-    weekly_rows = compute_weekly_multi_rows(
-        assignment_vars, solver, person_list, shift_list, weights.get("weekly_multi", 1)
-    )
-    all_rows.extend(weekly_rows)
-
-    # Aggregate totals
-    total_weighted = sum(r.get("weighted", 0) for r in all_rows)
+    total_weighted = sum(r.weighted for r in all_rows)
     by_component: Dict[str, int] = defaultdict(int)
     for r in all_rows:
-        by_component[r["component"]] += int(r.get("weighted", 0))
+        by_component[r.component] += r.weighted
 
-    summary = {
-        "total_weighted": total_weighted,
-        "by_component": dict(by_component),
-    }
+    summary = {"total_weighted": total_weighted, "by_component": dict(by_component)}
 
-    # Write CSV
-    fieldnames = sorted({k for r in all_rows for k in r.keys()})
+    row_dicts = [r.to_dict() for r in all_rows]
+    fieldnames = sorted({k for d in row_dicts for k in d.keys()})
     with open(filepath, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
-        for r in all_rows:
-            writer.writerow(r)
+        writer.writerows(row_dicts)
 
-    # Also write a compact summary CSV
     summary_path = filepath.replace(".csv", "_summary.csv")
     with open(summary_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
@@ -290,44 +141,3 @@ def export_penalties(
         writer.writerow(["__total__", total_weighted])
 
     return all_rows, summary
-
-
-def compute_monthly_avg_rows(
-    assignment_vars,
-    solver,
-    person_list: List[Dict[str, Any]],
-    shift_list: List[Dict[str, Any]],
-    weight: int,
-) -> List[Dict[str, Any]]:
-    # Determine distinct year-months present in the roster and total shifts
-    ym_keys = set()
-    for shift in shift_list:
-        d = datetime.strptime(shift["date"], "%Y-%m-%d")
-        ym_keys.add((d.year, d.month))
-    n_months = len(ym_keys) if ym_keys else 0
-
-    rows: List[Dict[str, Any]] = []
-    total_shifts = len(shift_list)
-    for t_idx, tester in enumerate(person_list):
-        per_month = int(tester.get("month_avg", 0))
-        target_total = per_month * n_months
-        assigned_total = sum(
-            _assigned(solver, assignment_vars[(t_idx, s)]) for s in range(total_shifts)
-        )
-        deficit = max(0, target_total - assigned_total)
-        # Quadratic cost: weight * deficit^2
-        weighted = weight * (deficit * deficit)
-        if deficit > 0:
-            rows.append(
-                {
-                    "component": "monthly_avg",
-                    "person": tester["name"],
-                    "months": n_months,
-                    "assigned_total": assigned_total,
-                    "avg_per_month": per_month,
-                    "target_total": target_total,
-                    "units": deficit,
-                    "weighted": weighted,
-                }
-            )
-    return rows

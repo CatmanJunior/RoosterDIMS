@@ -7,8 +7,8 @@ from typing import Optional
 import pandas as pd
 import streamlit as st
 
-from persons import csv_to_personlist
-from shift_list import build_location_plan, get_weekday_from_date
+from person_list import csv_to_personlist
+from shift_manager import build_location_plan, get_weekday_from_date
 from config import (
     get_locations_config,
     get_data_sources_config,
@@ -171,9 +171,8 @@ def render_generator_page() -> None:
         # Build initial per-date, per-location shift plan (from locations config, fallback to weekday defaults)
         try:
             date_keys = set()
-            for p in persons if isinstance(persons, list) else []:
-                av = p.get("availability", {}) if isinstance(p, dict) else {}
-                for k in av.keys():
+            for p in persons:
+                for k in p.availability.keys():
                     if isinstance(k, str) and len(k) == 10 and k[4] == "-" and k[7] == "-":
                         date_keys.add(k)
             date_list = sorted(date_keys)
@@ -225,7 +224,7 @@ def render_generator_page() -> None:
                     )
                     for _, row in edited.iterrows():
                         dct = {col: int(row[col]) if pd.notna(row[col]) else 0 for col in df_plan.columns if col != "date"}
-                        edited_plan[str(row["date"]) ] = dct
+                        edited_plan[str(row["date"])] = dct
                 except Exception:
                     for _, row in df_plan.iterrows():
                         cols = st.columns([2] + [1] * (len(df_plan.columns) - 1))
@@ -240,7 +239,7 @@ def render_generator_page() -> None:
                                     step=1,
                                     value=int(row[col]) if pd.notna(row[col]) else 0,
                                 )
-                        edited_plan[str(row["date"]) ] = {k: int(v) for k, v in updates.items()}
+                        edited_plan[str(row["date"])] = {k: int(v) for k, v in updates.items()}
             else:
                 st.info("Geen datums gevonden om een shiftplan te maken.")
 

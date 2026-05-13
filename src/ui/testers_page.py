@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from persons import csv_to_personlist
+from person_list import csv_to_personlist
 from config import (
     get_locations_config,
     get_departments_config,
@@ -14,6 +14,7 @@ from config import (
 
 def render_testers_page(ds_conf: dict, project_root: object) -> None:
     """Render the Testers overview. Expects ds_conf from config and project_root (Path or str)."""
+    project_root = Path(project_root)
     st.title("👥 Testers Overzicht")
 
     dept_conf = get_departments_config()
@@ -66,7 +67,7 @@ def render_testers_page(ds_conf: dict, project_root: object) -> None:
     if not people:
         st.stop()
 
-    df_people = pd.DataFrame(people)
+    df_people = pd.DataFrame([p.to_dict() for p in people])
 
     # --- Mutual exclusions UI (prevent two people on same day) ---
     st.markdown("### ✋ Mutual exclusions (blokkeer twee personen op dezelfde dag)")
@@ -174,7 +175,7 @@ def render_testers_page(ds_conf: dict, project_root: object) -> None:
 
     # Bouw beschikbaarheidsmatrix
     # Basic columns
-    base_cols = ["name", "role", "pref_location", "month_max", "month_avg"]
+    base_cols = ["name", "role", "month_max", "month_avg"]
     avail_df = df_people[base_cols].copy()
 
     # Expand preference flags per configured location (pref_loc_flags is a dict per person)
@@ -189,7 +190,7 @@ def render_testers_page(ds_conf: dict, project_root: object) -> None:
         # safe column name
         col_name = f"pref_loc_{str(loc).replace(' ', '_')}"
         pref_cols.append(col_name)
-        avail_df[col_name] = df_people.get("pref_loc_flags", {}).apply(
+        avail_df[col_name] = df_people["pref_loc_flags"].apply(
             lambda flags, loc=loc: (flags.get(loc) if isinstance(flags, dict) else None)
         )
 

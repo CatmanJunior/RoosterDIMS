@@ -1,4 +1,6 @@
 import csv
+import re
+from pathlib import Path
 
 def export_to_csv(data, filename):
     """
@@ -37,3 +39,16 @@ def split_testers(data):
     
     data = modified_data
     return data
+
+
+def sanitize_rooster_name(name: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_-]+", "_", name.strip())
+    cleaned = cleaned.strip("_-")
+    return cleaned or "rooster"
+
+
+def resolve_roster_base_dir(ds_conf: dict, year: int, quarter: str) -> Path:
+    roster_folder = ds_conf.get("roster_folder")
+    roster_csv = ds_conf.get("roster_csv", "rooster.csv")
+    base = Path(roster_folder) if roster_folder else Path(roster_csv).parent
+    return base / str(year) / str(quarter)
